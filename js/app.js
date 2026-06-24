@@ -170,7 +170,7 @@ function refreshCharacters() {
     area.querySelectorAll('.char-card').forEach(card => {
       const item = list.find(c => String(c.id) === String(card.dataset.id));
       if (!item) return;
-      card.onclick = (e) => { if (e.target.classList.contains('char-play')) { e.stopPropagation(); playChar(item); } else openEditModal(item); };
+      card.onclick = (e) => { if (e.target.closest('.char-play')) { e.stopPropagation(); playChar(item); } else if (e.target.closest('.char-hanzi')) { openEditModal(item); } };
       card.oncontextmenu = (e) => { e.preventDefault(); deleteCharItem(item); };
       let pt; card.addEventListener('touchstart', () => { pt = setTimeout(() => deleteCharItem(item), 600); });
       card.addEventListener('touchend', () => clearTimeout(pt)); card.addEventListener('touchmove', () => clearTimeout(pt));
