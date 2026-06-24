@@ -116,7 +116,7 @@ function switchTab(tab) {
 }
 
 function navigateTo(page) {
-  const titles = { history: '历史听写', latest: '最新听写' };
+  const titles = { history: '历史听写', latest: '最新听写', error: '错词本' };
   document.getElementById('navTitle').textContent = titles[page] || '';
   document.getElementById('tabbar').style.display = 'none';
   document.getElementById('navBack').style.display = '';
@@ -125,6 +125,7 @@ function navigateTo(page) {
   currentPage = page;
   if (page === 'history') initHistory();
   else if (page === 'latest') loadLatest();
+  else if (page === 'error') initErrorBook();
 }
 
 function refreshCurrentPage() {
@@ -136,6 +137,7 @@ function refreshCurrentPage() {
 function initStatistics() {
   document.getElementById('goLatestBtn').onclick = () => navigateTo('latest');
   document.getElementById('goHistoryBtn').onclick = () => navigateTo('history');
+  document.getElementById('goErrorBtn').onclick = () => navigateTo('error');
 }
 
 // ========== 汉字库页 ==========
@@ -162,7 +164,9 @@ function refreshCharacters() {
   const area = document.getElementById('charListArea');
   if (list.length === 0) { area.innerHTML = '<div class="empty-tip">暂无内容，点击右下角添加</div>'; }
   else {
-    area.innerHTML = '<div class="char-grid">' + list.map(item => `<div class="char-card" data-id="${item.id}">${item.pinyin?`<span class="char-pinyin">${item.pinyin}</span>`:''}<span class="char-hanzi">${item.content||''}</span>${item.ciyu?`<span class="char-ciyu">${item.ciyu}</span>`:''}<span class="char-times">${item.times?item.times:''}</span><span class="char-play">🔈</span></div>`).join('') + '</div>';
+    area.innerHTML = '<div class="char-grid">' + list.map(item => `<div class="char-card" data-id="${item.id}">${item.pinyin?`<span class="char-pinyin">${item.pinyin}</span>`:''}<span class="char-hanzi">${item.content||''}</span>${item.ciyu?`<span class="char-ciyu">${item.ciyu}</span>`:''}<span class="char-times">${item.times?item.times:''}</span><span class="char-play">
+      <svg t="1782292289492" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="3691" width="25" height="25"><path d="M529.1 901.6c-2.7 0-12.1-4.1-17-9l-0.3-0.3-230.4-190.1H96.1c-8.9 0-18.3-4.6-22.7-9-4.4-4.4-9-13.8-9-22.7v-319c0-7 2.7-12.9 4.4-14.6H71l2.4-2.4c4.4-4.4 13.8-9 22.7-9h185.3l230.4-195.8 0.2-0.2c5.8-5.8 12.9-7 17.8-7 4.4 0 8.9 1 12.6 2.9l0.5 0.3 0.5 0.2c12.5 4.2 17.2 11.3 17.2 26.4v717.8c0 15.1-4.7 22.3-17.2 26.4l-1.8 0.6-1.4 1.4c-3 3-5.6 3.1-11.1 3.1z m279.1-79.7c-9.9 0-23.1-5.1-26.9-12.6-9-18-5.8-36.4 7.9-46.1 4.8-2 11.6-7.2 20.3-15.6 8.9-8.7 22.4-23.7 36.2-45.7 23-36.8 50.4-99.7 50.4-190.9s-29-154.2-53.3-191.1c-14.5-22-28.8-37-38.2-45.6-6.6-6.1-14.9-13-21-15.5-12.6-9.1-17-31.4-8.9-44.5 9.4-9.1 20.6-14.3 30.8-14.3 5.4 0 10.4 1.4 14.8 4.2 0.7 0.6 1.6 1.3 3 2.4 29.4 23.1 54.9 51.4 75.8 84.1 40.1 62.9 60.5 137 60.5 220.3 0 83.7-19.7 158.1-58.4 221.1-20.1 32.7-44.5 60.9-72.6 83.6-1.7 1.4-2.6 2.1-3.3 2.8-3.4 3.4-13.3 3.4-17.1 3.4zM688.6 696.6c-8.3 0-22.6-9.7-26.9-18.3l-0.2-0.5-0.3-0.4c-8.2-12.4 0.8-30.4 14.5-39.7 6.4-3.4 60.9-35.5 60.9-132.3 0-46.5-18-78.4-33.2-97-16.5-20.2-33.1-29.4-33.7-29.8l-0.6-0.3-0.7-0.2c-5.8-1.9-11.4-8.5-14.3-16.8-2.9-8.3-2.3-16.6 1.4-22.2l0.6-0.9 0.3-1c2.9-8.6 15.6-16.1 27.3-16.1 4.5 0 8.6 1.1 11.7 3.2l2.1 1.4h1.5c4.5 1.7 29.1 14 53.5 41.9 21.7 24.9 47.6 68.1 47.6 132.2 0 72.9-24.5 120.2-45 147.1-22.6 29.5-45.6 42.2-50.4 44.1h-2.4l-2.4 2.4c-3.2 3-5.7 3.2-11.3 3.2z" fill="#088019" p-id="3692"></path></svg>
+      </span></div>`).join('') + '</div>';
     area.querySelectorAll('.char-card').forEach(card => {
       const item = list.find(c => String(c.id) === String(card.dataset.id));
       if (!item) return;
@@ -572,7 +576,7 @@ async function selectDate(fileName) {
 function renderHistoryChars() {
   const charArea = document.getElementById('charAreaContainer');
   if (historyState.charList.length === 0) { charArea.innerHTML = '<div class="empty-tip"><span class="empty-text">无数据</span></div>'; return; }
-  charArea.innerHTML = '<div class="char-grid">'+historyState.charList.map((item,idx)=>'<div class="char-card" style="'+(item.yes===1?'background:#c9f9d5;':item.yes===2?'background:#f4b0ac;':'')+'">'+(item.py?'<span class="char-pinyin">'+item.py+'</span>':'')+'<span class="char-hanzi">'+item.hz+'</span>'+(item.cy?'<span class="char-ciyu">'+item.cy+'</span>':'')+(item.cyp?'<span class="char-ciyupy">'+item.cyp+'</span>':'')+(item.yes!==0?'<div class="mark-status">'+(item.yes===1?'✅':'❌')+'</div>':'<div class="mark-btns"><button class="mark-btn" data-idx="'+idx+'" data-val="1">✅</button><button class="mark-btn" data-idx="'+idx+'" data-val="2">❌</button></div>')+'</div>').join('')+'</div>';
+  charArea.innerHTML = '<div class="char-grid">'+historyState.charList.map((item,idx)=>'<div class="char-card" style="'+(item.yes===1?'background:#c9f9d5;':item.yes===2?'background:#f4b0ac;':'')+'">'+(item.py?'<span class="char-pinyin">'+item.py+'</span>':'')+'<span class="char-hanzi">'+item.hz+'</span>'+(item.cy?'<span class="char-ciyu">'+item.cy+'</span>':'')+(item.cyp?'<span class="char-ciyupy">'+item.cyp+'</span>':'')+(item.yes!==0?'<div class="mark-status"><img class="mark-icon" src="css/'+(item.yes===1?'success':'error')+'.png" /></div>':'<div class="mark-btns"><button class="mark-btn" data-idx="'+idx+'" data-val="1"><img class="mark-icon" src="css/success.png" /></button><button class="mark-btn" data-idx="'+idx+'" data-val="2"><img class="mark-icon" src="css/error.png" /></button></div>')+'</div>').join('')+'</div>';
   charArea.querySelectorAll('.mark-btn').forEach(b=>{b.onclick=()=>historyMarkYes(parseInt(b.dataset.idx),parseInt(b.dataset.val));});
 }
 
@@ -580,6 +584,22 @@ async function historyMarkYes(idx, value) {
   const item = historyState.charList[idx]; const ov=item.yes; const nv=ov===value?0:value;
   historyState.charList[idx].yes=nv; updateYesInCharList(item.id,ov,nv); renderHistoryChars();
   await saveHistoryCountData();
+  // 记录错误汉字到 count_error
+  if (nv === 2) {
+    const config=getSyncConfig();
+    if(isSyncConfigured(config)) {
+      await pushErrorRecord(config, {
+        id: item.id,
+        hz: item.hz || '',
+        cy: item.cy || '',
+        cypy: item.cyp || '',
+        py: item.py || '',
+        nj: item.nj || '',
+        dy: item.dy || '',
+        kw: item.kw || ''
+      });
+    }
+  }
   const fn=''+historyState.currentYear+String(historyState.currentMonth).padStart(2,'0'); const config=getSyncConfig();
   if(!isSyncConfigured(config))return;
   try { const result=await pullCountDataFromGitee(config,'dictation/count_data/'+fn+'/'+historyState.selectedDate); historyState.selectedFileSha=result.sha||''; historyState.charList=(result.records||[]).map(r=>({...r,yes:typeof r.yes==='number'?r.yes:0})); renderHistoryChars(); } catch(e){}
@@ -622,14 +642,31 @@ async function loadLatest() {
 
 function renderLatestChars() {
   const charArea=document.getElementById('latestCharArea');
-  charArea.innerHTML='<div class="char-grid">'+latestState.charList.map((item,idx)=>'<div class="char-card" style="width:90px;'+(item.yes===1?'background:#c9f9d5;':item.yes===2?'background:#f4b0ac;':'')+'">'+(item.py?'<span class="char-pinyin">'+item.py+'</span>':'')+'<span class="char-hanzi">'+item.hz+'</span>'+(item.cy?'<span class="char-ciyu">'+item.cy+'</span>':'')+(item.cyp?'<span class="char-ciyupy">'+item.cyp+'</span>':'')+(item.yes!==0?'<div class="mark-status">'+(item.yes===1?'✅':'❌')+'</div>':'<div class="mark-btns"><button class="mark-btn" data-idx="'+idx+'" data-val="1">✅</button><button class="mark-btn" data-idx="'+idx+'" data-val="2">❌</button></div>')+'</div>').join('')+'</div>';
+  charArea.innerHTML='<div class="char-grid">'+latestState.charList.map((item,idx)=>'<div class="char-card" style="width:90px;'+(item.yes===1?'background:#c9f9d5;':item.yes===2?'background:#f4b0ac;':'')+'">'+(item.py?'<span class="char-pinyin">'+item.py+'</span>':'')+'<span class="char-hanzi">'+item.hz+'</span>'+(item.cy?'<span class="char-ciyu">'+item.cy+'</span>':'')+(item.cyp?'<span class="char-ciyupy">'+item.cyp+'</span>':'')+(item.yes!==0?'<div class="mark-status"><img class="mark-icon" src="css/'+(item.yes===1?'success':'error')+'.png" /></div>':'<div class="mark-btns"><button class="mark-btn" data-idx="'+idx+'" data-val="1"><img class="mark-icon" src="css/success.png" /></button><button class="mark-btn" data-idx="'+idx+'" data-val="2"><img class="mark-icon" src="css/error.png" /></button></div>')+'</div>').join('')+'</div>';
   charArea.querySelectorAll('.mark-btn').forEach(b=>{b.onclick=()=>latestMarkYes(parseInt(b.dataset.idx),parseInt(b.dataset.val));});
 }
 
 async function latestMarkYes(idx, value) {
   const item=latestState.charList[idx]; const ov=item.yes; const nv=ov===value?0:value;
   latestState.charList[idx].yes=nv; updateYesInCharList(item.id,ov,nv); renderLatestChars();
-  await saveLatestCountData(); await loadLatest();
+  await saveLatestCountData();
+  // 记录错误汉字到 count_error
+  if (nv === 2) {
+    const config=getSyncConfig();
+    if(isSyncConfigured(config)) {
+      await pushErrorRecord(config, {
+        id: item.id,
+        hz: item.hz || '',
+        cy: item.cy || '',
+        cypy: item.cyp || '',
+        py: item.py || '',
+        nj: item.nj || '',
+        dy: item.dy || '',
+        kw: item.kw || ''
+      });
+    }
+  }
+  await loadLatest();
 }
 
 async function saveLatestCountData() {
@@ -637,6 +674,91 @@ async function saveLatestCountData() {
   const config=getSyncConfig(); if(!isSyncConfigured(config)){latestState.syncing=false;return;}
   try{await pushCountDataRecords(config,latestState.folderName,latestState.fileName,latestState.charList,latestState.fileSha);}catch(e){showToast('保存失败');}
   latestState.syncing=false;
+}
+
+// ========== 错词本页 ==========
+let errorState = { currentYear: 2026, currentMonth: 6, monthFiles: [], selectedFile: '', charList: [], loading: true };
+
+function getCurrentErrorMonthState() {
+  const d = new Date();
+  return { year: d.getFullYear(), month: d.getMonth() + 1, fileName: `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}.json` };
+}
+
+function initErrorBook() {
+  const s = getCurrentErrorMonthState();
+  errorState.currentYear = s.year;
+  errorState.currentMonth = s.month;
+  errorState.selectedFile = s.fileName;
+  document.getElementById('errorPrevMonthBtn').onclick = () => {
+    errorState.currentMonth--;
+    if (errorState.currentMonth < 1) { errorState.currentMonth = 12; errorState.currentYear--; }
+    errorState.selectedFile = `${errorState.currentYear}${String(errorState.currentMonth).padStart(2, '0')}.json`;
+    loadErrorData();
+  };
+  document.getElementById('errorNextMonthBtn').onclick = () => {
+    errorState.currentMonth++;
+    if (errorState.currentMonth > 12) { errorState.currentMonth = 1; errorState.currentYear++; }
+    errorState.selectedFile = `${errorState.currentYear}${String(errorState.currentMonth).padStart(2, '0')}.json`;
+    loadErrorData();
+  };
+  loadErrorMonthList();
+  loadErrorData();
+}
+
+async function loadErrorMonthList() {
+  const config = getSyncConfig();
+  if (!isSyncConfigured(config)) return;
+  try {
+    errorState.monthFiles = await listErrorDirs(config);
+  } catch (e) {
+    errorState.monthFiles = [];
+  }
+}
+
+async function loadErrorData() {
+  errorState.loading = true;
+  const area = document.getElementById('errorCharArea');
+  const countText = document.getElementById('errorCountText');
+  area.innerHTML = '<div class="empty-tip"><span class="empty-text">加载中...</span></div>';
+  document.getElementById('errorMonthLabel').textContent = `${errorState.currentYear}年${String(errorState.currentMonth).padStart(2, '0')}月`;
+  const config = getSyncConfig();
+  if (!isSyncConfigured(config)) {
+    area.innerHTML = '<div class="empty-tip"><span class="empty-text">请先配置同步</span></div>';
+    countText.textContent = '';
+    errorState.loading = false;
+    return;
+  }
+  try {
+    errorState.charList = await pullErrorDataFromGitee(config, errorState.selectedFile);
+    countText.textContent = errorState.charList.length > 0 ? `共 ${errorState.charList.length} 个错词` : '暂无错词记录';
+    renderErrorChars();
+  } catch (e) {
+    area.innerHTML = '<div class="empty-tip"><span class="empty-text">加载失败</span></div>';
+    countText.textContent = '';
+  }
+  errorState.loading = false;
+}
+
+function renderErrorChars() {
+  const area = document.getElementById('errorCharArea');
+  if (errorState.charList.length === 0) {
+    area.innerHTML = '<div class="empty-tip"><span class="empty-text">暂无错词记录</span></div>';
+    return;
+  }
+  area.innerHTML = '<div class="char-grid">' + errorState.charList.map((item) => {
+    const bgStyle = 'background:#fff3f3;';
+    return '<div class="char-card error-card" style="' + bgStyle + '">'
+      + (item.py ? '<span class="char-pinyin">' + item.py + '</span>' : '')
+      + '<span class="char-hanzi">' + item.hz + '</span>'
+      + (item.cy ? '<span class="char-ciyu">' + item.cy + '</span>' : '')
+      + (item.cypy ? '<span class="char-ciyupy">' + item.cypy + '</span>' : '')
+      + '<div class="error-card-info">'
+      + '<span class="error-info-item">' + (item.nj || '') + '</span>'
+      + '<span class="error-info-item">' + (item.dy || '') + '</span>'
+      + '<span class="error-info-item">' + (item.kw || '') + '</span>'
+      + '</div>'
+      + '</div>';
+  }).join('') + '</div>';
 }
 
 // ========== 初始化 ==========

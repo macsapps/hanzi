@@ -1,192 +1,218 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>汉字听写</title>
-<link rel="stylesheet" href="css/style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>汉字听写</title>
+    <link rel="stylesheet" href="css/style.css">
 </head>
+
 <body>
 
-<div id="app">
+    <div id="app">
 
-  <header class="navbar">
-    <span class="nav-back" id="navBack" style="display:none;">‹</span>
-    <span class="nav-title" id="navTitle">统计</span>
-  </header>
+        <header class="navbar">
+            <span class="nav-back" id="navBack" style="display:none;">‹</span>
+            <span class="nav-title" id="navTitle">统计</span>
+        </header>
 
-  <main class="main-content" id="mainContent">
+        <main class="main-content" id="mainContent">
 
-    <!-- ============ 统计页 ============ -->
-    <section id="page-statistics" class="page-section active">
-      <div class="statistics-page">
-        <div class="stats-btn" id="goLatestBtn">📜 最新听写</div>
-        <div class="stats-btn" id="goHistoryBtn">📜 历史听写</div>
-      </div>
-    </section>
+            <!-- ============ 统计页 ============ -->
+            <section id="page-statistics" class="page-section active">
+                <div class="statistics-page">
+                    <div class="stats-btn" id="goLatestBtn">📜 最新听写</div>
+                    <div class="stats-btn" id="goHistoryBtn">📜 历史听写</div>
+                    <div class="stats-btn" id="goErrorBtn">📜 错词本</div>
+                </div>
+            </section>
 
-    <!-- ============ 汉字库页 ============ -->
-    <section id="page-characters" class="page-section">
-      <div class="grade-tabs" id="charGradeTabs"></div>
-      <div class="filter-bar">
-        <div class="filter-picker">
-          <select id="charUnitFilter"><option value="0">全部单元</option></select>
-        </div>
-        <div class="filter-picker">
-          <select id="charLessonFilter"><option value="0">全部课文</option></select>
-        </div>
-      </div>
-      <div class="char-list-area" id="charListArea"></div>
-      <button class="fab fab-manage" id="charManageBtn">⚙</button>
-      <button class="fab" id="charAddBtn">+</button>
-    </section>
+            <!-- ============ 汉字库页 ============ -->
+            <section id="page-characters" class="page-section">
+                <div class="grade-tabs" id="charGradeTabs"></div>
+                <div class="filter-bar">
+                    <div class="filter-picker">
+                        <select id="charUnitFilter">
+                            <option value="0">全部单元</option>
+                        </select>
+                    </div>
+                    <div class="filter-picker">
+                        <select id="charLessonFilter">
+                            <option value="0">全部课文</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="char-list-area" id="charListArea"></div>
+                <button class="fab fab-manage" id="charManageBtn">⚙</button>
+                <button class="fab" id="charAddBtn">+</button>
+            </section>
 
-    <!-- ============ 听写页 ============ -->
-    <section id="page-dictation" class="page-section">
+            <!-- ============ 听写页 ============ -->
+            <section id="page-dictation" class="page-section">
 
-      <div id="dict-select" class="dict-subpage active">
-        <div class="mode-tabs" id="dictModeTabs"></div>
-        <div class="grade-tabs" id="dictGradeTabs"></div>
-        <div class="filter-bar">
-          <div class="filter-picker">
-            <select id="dictUnitFilter"><option value="0">选择单元</option></select>
-          </div>
-          <div class="filter-picker" id="dictLessonPicker">
-            <select id="dictLessonFilter"><option value="0">选择课文</option></select>
-          </div>
-        </div>
-        <div class="select-preview">
-          <span class="preview-text">共 <span class="preview-count" id="dictCount">0</span> 个字词，准备听写</span>
-        </div>
-        <div class="dict-char-preview" id="dictCharPreview"></div>
-        <div class="start-btn-wrap">
-          <div class="start-btn" id="dictStartBtn">开始听写</div>
-        </div>
-      </div>
+                <div id="dict-select" class="dict-subpage active">
+                    <div class="mode-tabs" id="dictModeTabs"></div>
+                    <div class="grade-tabs" id="dictGradeTabs"></div>
+                    <div class="filter-bar">
+                        <div class="filter-picker">
+                            <select id="dictUnitFilter">
+                                <option value="0">选择单元</option>
+                            </select>
+                        </div>
+                        <div class="filter-picker" id="dictLessonPicker">
+                            <select id="dictLessonFilter">
+                                <option value="0">选择课文</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="select-preview">
+                        <span class="preview-text">共 <span class="preview-count" id="dictCount">0</span> 个字词，准备听写</span>
+                    </div>
+                    <div class="dict-char-preview" id="dictCharPreview"></div>
+                    <div class="start-btn-wrap">
+                        <div class="start-btn" id="dictStartBtn">开始听写</div>
+                    </div>
+                </div>
 
-      <div id="dict-running" class="dict-subpage">
-        <div class="progress-area">
-          <span class="progress-text" id="dictProgressText">1 / 1</span>
-          <div class="progress-bar">
-            <div class="progress-fill" id="dictProgressFill" style="width:0%"></div>
-          </div>
-        </div>
-        <div class="char-display">
-          <span class="pinyin" id="dictPinyin"></span>
-          <span class="main-char" id="dictMainChar"></span>
-          <span class="category-badge" id="dictBadge" style="display:none;"></span>
-        </div>
-        <div class="read-indicator" id="dictReadIndicator"></div>
-        <div class="pause-hint" id="dictPauseHint" style="display:none;">
-          <span class="pause-hint-text">已暂停</span>
-        </div>
-        <div class="control-btns">
-          <button class="ctrl-btn ctrl-btn-pause" id="dictPauseBtn">⏸ 暂停</button>
-          <button class="ctrl-btn ctrl-btn-stop" id="dictStopBtn">⏹ 停止</button>
-        </div>
-      </div>
+                <div id="dict-running" class="dict-subpage">
+                    <div class="progress-area">
+                        <span class="progress-text" id="dictProgressText">1 / 1</span>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="dictProgressFill" style="width:0%"></div>
+                        </div>
+                    </div>
+                    <div class="char-display">
+                        <span class="pinyin" id="dictPinyin"></span>
+                        <span class="main-char" id="dictMainChar"></span>
+                        <span class="category-badge" id="dictBadge" style="display:none;"></span>
+                    </div>
+                    <div class="read-indicator" id="dictReadIndicator"></div>
+                    <div class="pause-hint" id="dictPauseHint" style="display:none;">
+                        <span class="pause-hint-text">已暂停</span>
+                    </div>
+                    <div class="control-btns">
+                        <button class="ctrl-btn ctrl-btn-pause" id="dictPauseBtn">⏸ 暂停</button>
+                        <button class="ctrl-btn ctrl-btn-stop" id="dictStopBtn">⏹ 停止</button>
+                    </div>
+                </div>
 
-      <div id="dict-complete" class="dict-subpage">
-        <div class="complete-icon">✓</div>
-        <div class="complete-title">听写完成！</div>
-        <div class="complete-stat" id="dictCompleteStat"></div>
-        <div class="complete-grid" id="dictCompleteGrid"></div>
-        <div class="complete-btns">
-          <div class="complete-btn complete-btn-primary" id="dictRestartBtn">再来一次</div>
-          <div class="complete-btn complete-btn-secondary" id="dictBackBtn">返回选择</div>
-        </div>
-      </div>
+                <div id="dict-complete" class="dict-subpage">
+                    <div class="complete-icon">✓</div>
+                    <div class="complete-title">听写完成！</div>
+                    <div class="complete-stat" id="dictCompleteStat"></div>
+                    <div class="complete-grid" id="dictCompleteGrid"></div>
+                    <div class="complete-btns">
+                        <div class="complete-btn complete-btn-primary" id="dictRestartBtn">再来一次</div>
+                        <div class="complete-btn complete-btn-secondary" id="dictBackBtn">返回选择</div>
+                    </div>
+                </div>
 
-    </section>
+            </section>
 
-    <!-- ============ 我的页 ============ -->
-    <section id="page-mine" class="page-section">
-      <div class="mine-page">
-        <div class="section">
-          <span class="section-title">同步设置</span>
-          <div class="form-card">
-            <div class="form-item">
-              <span class="form-item-label">令牌</span>
-              <input class="form-item-input" id="cfgToken" type="password" placeholder="请输入个人访问令牌" />
-              <span class="form-item-eye" id="eyeBtn">🔒</span>
+            <!-- ============ 我的页 ============ -->
+            <section id="page-mine" class="page-section">
+                <div class="mine-page">
+                    <div class="section">
+                        <span class="section-title">同步设置</span>
+                        <div class="form-card">
+                            <div class="form-item">
+                                <span class="form-item-label">令牌</span>
+                                <input class="form-item-input" id="cfgToken" type="password" placeholder="请输入个人访问令牌" />
+                                <span class="form-item-eye" id="eyeBtn">🔒</span>
+                            </div>
+                            <div class="form-item">
+                                <span class="form-item-label">仓库地址</span>
+                                <input class="form-item-input" id="cfgRepo" placeholder="如：username/repo" />
+                            </div>
+                            <div class="form-item">
+                                <span class="form-item-label">分支</span>
+                                <input class="form-item-input" id="cfgBranch" placeholder="master" />
+                            </div>
+                        </div>
+                        <div style="margin-top:16px;">
+                            <button class="btn btn-primary btn-block" id="saveCfgBtn">保存配置</button>
+                        </div>
+                    </div>
+                    <div class="section">
+                        <span class="section-title">数据同步</span>
+                        <div class="sync-status" id="syncStatus" style="display:none;">
+                            <span class="sync-status-text" id="syncStatusText"></span>
+                        </div>
+                        <div class="btn-row">
+                            <button class="btn btn-primary" id="pushBtn">推送至 Gitee</button>
+                            <button class="btn btn-outline" id="pullBtn">从 Gitee 拉取</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============ 历史听写页（子页） ============ -->
+            <section id="page-history" class="page-section">
+                <div class="month-bar">
+                    <div class="month-arrow" id="prevMonthBtn">◂</div>
+                    <span class="month-text" id="historyMonthLabel"></span>
+                    <div class="month-arrow" id="nextMonthBtn">▸</div>
+                </div>
+                <div class="content-area">
+                    <div class="date-list" id="dateListContainer"></div>
+                    <div class="char-area" id="charAreaContainer"></div>
+                </div>
+            </section>
+
+            <!-- ============ 最新听写页（子页） ============ -->
+            <section id="page-latest" class="page-section">
+                <div class="date-header" id="latestDateHeader"></div>
+                <div class="latest-char-scroll" id="latestCharArea"></div>
+            </section>
+
+            <!-- ============ 错词本页（子页） ============ -->
+            <section id="page-error" class="page-section">
+                <div class="month-bar">
+                    <div class="month-arrow" id="errorPrevMonthBtn">◂</div>
+                    <span class="month-text" id="errorMonthLabel"></span>
+                    <div class="month-arrow" id="errorNextMonthBtn">▸</div>
+                </div>
+                <div class="error-info-bar">
+                    <span class="error-count-text" id="errorCountText"></span>
+                </div>
+                <div class="error-char-scroll" id="errorCharArea"></div>
+            </section>
+
+        </main>
+
+        <nav class="tabbar" id="tabbar">
+            <div class="tab-item active" data-tab="statistics">
+                <span class="tab-icon">📊</span><span class="tab-text">统计</span>
             </div>
-            <div class="form-item">
-              <span class="form-item-label">仓库地址</span>
-              <input class="form-item-input" id="cfgRepo" placeholder="如：username/repo" />
+            <div class="tab-item" data-tab="characters">
+                <span class="tab-icon">📚</span><span class="tab-text">汉字库</span>
             </div>
-            <div class="form-item">
-              <span class="form-item-label">分支</span>
-              <input class="form-item-input" id="cfgBranch" placeholder="master" />
+            <div class="tab-item" data-tab="dictation">
+                <span class="tab-icon">🔊</span><span class="tab-text">听写</span>
             </div>
-          </div>
-          <div style="margin-top:16px;">
-            <button class="btn btn-primary btn-block" id="saveCfgBtn">保存配置</button>
-          </div>
-        </div>
-        <div class="section">
-          <span class="section-title">数据同步</span>
-          <div class="sync-status" id="syncStatus" style="display:none;">
-            <span class="sync-status-text" id="syncStatusText"></span>
-          </div>
-          <div class="btn-row">
-            <button class="btn btn-primary" id="pushBtn">推送至 Gitee</button>
-            <button class="btn btn-outline" id="pullBtn">从 Gitee 拉取</button>
-          </div>
-        </div>
-      </div>
-    </section>
+            <div class="tab-item" data-tab="mine">
+                <span class="tab-icon">👤</span><span class="tab-text">我的</span>
+            </div>
+        </nav>
 
-    <!-- ============ 历史听写页（子页） ============ -->
-    <section id="page-history" class="page-section">
-      <div class="month-bar">
-        <div class="month-arrow" id="prevMonthBtn">◂</div>
-        <span class="month-text" id="historyMonthLabel"></span>
-        <div class="month-arrow" id="nextMonthBtn">▸</div>
-      </div>
-      <div class="content-area">
-        <div class="date-list" id="dateListContainer"></div>
-        <div class="char-area" id="charAreaContainer"></div>
-      </div>
-    </section>
-
-    <!-- ============ 最新听写页（子页） ============ -->
-    <section id="page-latest" class="page-section">
-      <div class="date-header" id="latestDateHeader"></div>
-      <div class="latest-char-scroll" id="latestCharArea"></div>
-    </section>
-
-  </main>
-
-  <nav class="tabbar" id="tabbar">
-    <div class="tab-item active" data-tab="statistics">
-      <span class="tab-icon">📊</span><span class="tab-text">统计</span>
     </div>
-    <div class="tab-item" data-tab="characters">
-      <span class="tab-icon">📚</span><span class="tab-text">汉字库</span>
+
+    <div id="toast" class="toast"></div>
+
+    <div id="modalMask" class="modal-mask" style="display:none;">
+        <div class="modal-box" id="modalBox"></div>
     </div>
-    <div class="tab-item" data-tab="dictation">
-      <span class="tab-icon">🔊</span><span class="tab-text">听写</span>
+
+    <div id="loadingMask" class="loading-mask" style="display:none;">
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loadingText">加载中...</div>
     </div>
-    <div class="tab-item" data-tab="mine">
-      <span class="tab-icon">👤</span><span class="tab-text">我的</span>
-    </div>
-  </nav>
 
-</div>
-
-<div id="toast" class="toast"></div>
-
-<div id="modalMask" class="modal-mask" style="display:none;">
-  <div class="modal-box" id="modalBox"></div>
-</div>
-
-<div id="loadingMask" class="loading-mask" style="display:none;">
-  <div class="loading-spinner"></div>
-  <div class="loading-text" id="loadingText">加载中...</div>
-</div>
-
-<script src="js/gitee.js"></script>
-<script src="js/tts.js"></script>
-<script src="js/app.js"></script>
+    <script src="js/gitee.js"></script>
+    <script src="js/tts.js"></script>
+    <script src="js/app.js"></script>
 </body>
+
 </html>
+

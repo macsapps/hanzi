@@ -413,14 +413,14 @@ html, body {
 }
 
 .char-card {
-  width: 72px;
+  width: 64px;
   background: #fff;
   border-radius: 12px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 12px 8px;
+  padding: 12px 5px;
   box-shadow: 0 1px 4px rgba(0,0,0,0.05);
   cursor: pointer;
   position: relative;
@@ -451,7 +451,7 @@ html, body {
 }
 
 .char-play {
-  font-size: 16px;
+  font-size: 14px;
   cursor: pointer;
 }
 
@@ -620,7 +620,7 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 40px 0 24px;
+  padding: 10px 0;
 }
 
 .preview-text {
@@ -1047,14 +1047,23 @@ html, body {
   justify-content: center;
   background: #f0f0f0;
   cursor: pointer;
-  font-size: 16px;
   border: none;
+}
+
+.mark-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
 }
 
 .mark-status {
   margin-top: 8px;
   text-align: center;
-  font-size: 16px;
+}
+
+.mark-status .mark-icon {
+  width: 22px;
+  height: 22px;
 }
 
 .dict-char-preview {
@@ -1069,7 +1078,7 @@ html, body {
   gap: 10px;
 }
 .dict-char-preview .char-card {
-  width: 72px;
+  width: 64px;
   background: #fff;
   border-radius: 12px;
   display: flex;
@@ -1108,4 +1117,46 @@ html, body {
   color: #aaa;
   margin-top: 1px;
   font-style: italic;
+}
+
+/* ===== 错词本 ===== */
+.error-info-bar {
+  padding: 10px 16px;
+  background: #fff;
+  border-bottom: 1px solid #eee;
+}
+
+.error-count-text {
+  font-size: 14px;
+  color: #ff3b30;
+  font-weight: 600;
+}
+
+.error-char-scroll {
+  flex: 1;
+  padding: 10px;
+  overflow-y: auto;
+}
+
+.error-card {
+  width: auto !important;
+  min-width: 80px;
+  padding: 10px 12px !important;
+  border: 1px solid #ffcdd2;
+}
+
+.error-card-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+  justify-content: center;
+}
+
+.error-info-item {
+  font-size: 10px;
+  color: #999;
+  background: #f0f0f0;
+  padding: 2px 6px;
+  border-radius: 4px;
 }

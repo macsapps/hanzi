@@ -321,3 +321,106 @@ async function pushCountDataRecords(config, folderName, fileName, records, sha) 
     throw new Error((errData && errData.message) || `更新失败(${resp.status})`);
   }
 }
+
+// ========== count_error 错误记录 ==========
+function getErrorDataUrl(config, filePath) {
+  const parsed = parseRepo(config.repo);
+  if (!parsed) return null;
+  return `${GITEE_API_BASE}/repos/${parsed.owner}/${parsed.repo}/contents/${encodeFilePath(filePath)}`;
+}
+
+function getCurrentErrorMonth() {
+  const d = new Date();
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+async function pushErrorRecord(config, errorItem) {
+  if (!isSyncConfigured(config)) return;
+  const month = getCurrentErrorMonth();
+  const fileName = `${month}.json`;
+  const filePath = `dictation/count_error/${fileName}`;
+  const url = getErrorDataUrl(config, filePath);
+  if (!url) return;
+  const branch = config.branch || DEFAULT_BRANCH;
+  const token = config.token.trim();
+
+  // 拉取已有数据（用于去重和获取sha）
+  let existing = [];
+  let sha = '';
+  try {
+    const resp = await fetch(`${url}?access_token=${token}&ref=${branch}`);
+    const data = await resp.json();
+    if (resp.ok && data && data.content) {
+      const parsed = JSON.parse(decodeBase64(data.content));
+      existing = Array.isArray(parsed) ? parsed : [];
+      sha = data.sha || '';
+    }
+  } catch (e) {}
+
+  // 去重检查
+  if (existing.some(r => String(r.id) === String(errorItem.id) && r.hz === errorItem.hz)) return;
+
+  existing.push(errorItem);
+  const base64Content = encodeBase64(JSON.stringify(existing, null, 2));
+  const commitMsg = `记录错误汉字 ${errorItem.hz}`;
+
+  // 先用 POST 创建
+  const createResp = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_token: token, content: base64Content, branch, message: commitMsg })
+  });
+  if (createResp.ok) return;
+
+  // POST 失败（文件已存在），重新获取 sha
+  if (!sha) {
+    try {
+      const resp2 = await fetch(`${url}?access_token=${token}&ref=${branch}`);
+      const d2 = await resp2.json();
+      if (resp2.ok && d2 && d2.sha) sha = d2.sha;
+    } catch (e) {}
+  }
+  if (!sha) return;
+
+  // PUT 更新
+  await fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_token: token, content: base64Content, sha, branch, message: commitMsg })
+  });
+}
+
+async function listErrorDirs(config) {
+  if (!isSyncConfigured(config)) return [];
+  const parsed = parseRepo(config.repo);
+  if (!parsed) return [];
+  const url = `${GITEE_API_BASE}/repos/${parsed.owner}/${parsed.repo}/contents/${encodeFilePath('dictation/count_error')}`;
+  try {
+    const resp = await fetch(`${url}?access_token=${config.token.trim()}&ref=${config.branch || DEFAULT_BRANCH}`);
+    const data = await resp.json();
+    if (resp.ok && Array.isArray(data)) {
+      return data.filter(item => item.type === 'file' && item.name.endsWith('.json')).map(item => item.name).sort().reverse();
+    }
+    return [];
+  } catch (e) {
+    return [];
+  }
+}
+
+async function pullErrorDataFromGitee(config, monthFileName) {
+  if (!isSyncConfigured(config)) return [];
+  const filePath = `dictation/count_error/${monthFileName}`;
+  const url = getErrorDataUrl(config, filePath);
+  if (!url) return [];
+  try {
+    const resp = await fetch(`${url}?access_token=${config.token.trim()}&ref=${config.branch || DEFAULT_BRANCH}`);
+    const data = await resp.json();
+    if (resp.ok && data && data.content) {
+      const records = JSON.parse(decodeBase64(data.content));
+      return Array.isArray(records) ? records : [];
+    }
+    return [];
+  } catch (e) {
+    return [];
+  }
+}
