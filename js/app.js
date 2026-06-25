@@ -176,7 +176,7 @@ async function loadCategoryData(cat) {
 
 function navigateTo(page) {
   const titles = { history: '历史听写', latest: '最新听写', error: '错词本' };
-  document.getElementById('navTitle').textContent = titles[page] || '';
+  if (titles[page]) document.getElementById('navTitle').textContent = titles[page];
   document.getElementById('tabbar').style.display = 'none';
   document.getElementById('navBack').style.display = '';
   document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
@@ -187,6 +187,26 @@ function navigateTo(page) {
   else if (page === 'error') initErrorBook();
 }
 
+// 进入知识库分类详情子页（单页切换，不跳转独立 html）
+function navigateToCategory(cat, grade) {
+  charState.currentCategory = cat;
+  charState.currentGrade = grade;
+  charState.filterUnitIndex = 0;
+  charState.filterLessonIndex = 0;
+  navigateTo('category');
+  // 标题显示分类名
+  document.getElementById('navTitle').textContent = CATEGORY_LABELS[cat] || '知识库';
+  // 绑定筛选/FAB（每次进入重新绑定，元素始终存在于 DOM）
+  initCategoryPage();
+  // 按需加载该分类数据，加载完渲染
+  if (appState.categoryLoaded[cat]) {
+    refreshCategoryPage();
+  } else {
+    showLoading('加载数据中...');
+    loadCategoryData(cat).then(() => { hideLoading(); refreshCategoryPage(); }).catch(() => { hideLoading(); refreshCategoryPage(); });
+  }
+}
+
 // ========== 统计页 ==========
 function initStatistics() {
   document.getElementById('goLatestBtn').onclick = () => navigateTo('latest');
@@ -195,7 +215,7 @@ function initStatistics() {
 }
 
 // ========== 知识库页 ==========
-let charState = { currentGrade: 0 };
+let charState = { currentGrade: 0, currentCategory: 'hanzi', filterUnitIndex: 0, filterLessonIndex: 0 };
 
 const CATEGORY_INFO = [
   { value: 'hanzi', label: '汉字', icon: '🀄', color: '#FF6B35', desc: '会写生字' },
@@ -224,13 +244,225 @@ function refreshCharacters() {
   gridEl.querySelectorAll('.category-card').forEach(card => {
     card.onclick = () => {
       const cat = card.dataset.cat;
-      location.href = `${cat}.html?grade=${charState.currentGrade}`;
+      navigateToCategory(cat, charState.currentGrade);
     };
   });
 }
 
 function initCharacters() {
-  // 知识库页面不需要 filter/FAB 绑定，由独立页面承载
+  // 知识库首页由 refreshCharacters 渲染分类卡片；分类详情页绑定在 initCategoryPage
+}
+
+// ========== 知识库分类详情页（原 category.js 合并，单页内嵌） ==========
+function getCategoryPageList() {
+  const cat = charState.currentCategory, g = charState.currentGrade;
+  const gu = getGradeUnits(g);
+  const fuid = charState.filterUnitIndex > 0 ? gu[charState.filterUnitIndex - 1].id : null;
+  const gl = fuid === null ? gu.flatMap(u => u.lessons || []) : (gu.find(u => String(u.id) === String(fuid)) || { lessons: [] }).lessons || [];
+  let list = getCategoryGradeData(cat, g);
+  if (fuid !== null) list = list.filter(item => String(item.unitId) === String(fuid));
+  if (charState.filterLessonIndex > 0) { const lid = gl[charState.filterLessonIndex - 1].id; list = list.filter(item => String(item.lessonId) === String(lid)); }
+  return list;
+}
+
+function refreshCategoryPage() {
+  const cat = charState.currentCategory, g = charState.currentGrade;
+  // 年级 tab
+  const tabsEl = document.getElementById('cateGradeTabs');
+  tabsEl.innerHTML = GRADES.map((gd, i) => `<div class="grade-tab ${g === i ? 'active' : ''}" data-grade="${i}"><span class="grade-tab-text">${gd}</span></div>`).join('');
+  tabsEl.querySelectorAll('.grade-tab').forEach(t => {
+    t.onclick = () => { charState.currentGrade = parseInt(t.dataset.grade); charState.filterUnitIndex = 0; charState.filterLessonIndex = 0; refreshCategoryPage(); };
+  });
+
+  // 筛选栏
+  const units = getGradeUnits(g);
+  const fuid = charState.filterUnitIndex > 0 ? units[charState.filterUnitIndex - 1].id : null;
+  const lessons = fuid === null ? units.flatMap(u => u.lessons || []) : (units.find(u => String(u.id) === String(fuid)) || { lessons: [] }).lessons || [];
+  document.getElementById('cateUnitFilter').innerHTML = '<option value="0">全部单元</option>' + units.map((u, i) => `<option value="${i + 1}" ${charState.filterUnitIndex === i + 1 ? 'selected' : ''}>${u.name}</option>`).join('');
+  document.getElementById('cateLessonFilter').innerHTML = '<option value="0">全部课文</option>' + lessons.map((l, i) => `<option value="${i + 1}" ${charState.filterLessonIndex === i + 1 ? 'selected' : ''}>${l.name}</option>`).join('');
+
+  // 内容列表
+  const list = getCategoryPageList();
+  const area = document.getElementById('cateListArea');
+  if (list.length === 0) {
+    area.innerHTML = '<div class="empty-tip">暂无内容，点击右下角添加</div>';
+  } else {
+    area.innerHTML = '<div class="char-grid">' + list.map(item => {
+      let cardHtml = '';
+      if (item.pinyin) cardHtml += `<span class="char-pinyin">${item.pinyin}</span>`;
+      cardHtml += `<span class="char-hanzi">${item.content || ''}</span>`;
+      if (item.ciyu) cardHtml += `<span class="char-ciyu">${item.ciyu}</span>`;
+      if (item.ciyupy) cardHtml += `<span class="char-ciyupy">${item.ciyupy}</span>`;
+      cardHtml += `<span class="char-times">${item.times ? item.times : ''}</span>`;
+      cardHtml += `<span class="char-play"><svg t="1782292289492" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="3691" width="25" height="25"><path d="M529.1 901.6c-2.7 0-12.1-4.1-17-9l-0.3-0.3-230.4-190.1H96.1c-8.9 0-18.3-4.6-22.7-9-4.4-4.4-9-13.8-9-22.7v-319c0-7 2.7-12.9 4.4-14.6H71l2.4-2.4c4.4-4.4 13.8-9 22.7-9h185.3l230.4-195.8 0.2-0.2c5.8-5.8 12.9-7 17.8-7 4.4 0 8.9 1 12.6 2.9l0.5 0.3 0.5 0.2c12.5 4.2 17.2 11.3 17.2 26.4v717.8c0 15.1-4.7 22.3-17.2 26.4l-1.8 0.6-1.4 1.4c-3 3-5.6 3.1-11.1 3.1z m279.1-79.7c-9.9 0-23.1-5.1-26.9-12.6-9-18-5.8-36.4 7.9-46.1 4.8-2 11.6-7.2 20.3-15.6 8.9-8.7 22.4-23.7 36.2-45.7 23-36.8 50.4-99.7 50.4-190.9s-29-154.2-53.3-191.1c-14.5-22-28.8-37-38.2-45.6-6.6-6.1-14.9-13-21-15.5-12.6-9.1-17-31.4-8.9-44.5 9.4-9.1 20.6-14.3 30.8-14.3 5.4 0 10.4 1.4 14.8 4.2 0.7 0.6 1.6 1.3 3 2.4 29.4 23.1 54.9 51.4 75.8 84.1 40.1 62.9 60.5 137 60.5 220.3 0 83.7-19.7 158.1-58.4 221.1-20.1 32.7-44.5 60.9-72.6 83.6-1.7 1.4-2.6 2.1-3.3 2.8-3.4 3.4-13.3 3.4-17.1 3.4zM688.6 696.6c-8.3 0-22.6-9.7-26.9-18.3l-0.2-0.5-0.3-0.4c-8.2-12.4 0.8-30.4 14.5-39.7 6.4-3.4 60.9-35.5 60.9-132.3 0-46.5-18-78.4-33.2-97-16.5-20.2-33.1-29.4-33.7-29.8l-0.6-0.3-0.7-0.2c-5.8-1.9-11.4-8.5-14.3-16.8-2.9-8.3-2.3-16.6 1.4-22.2l0.6-0.9 0.3-1c2.9-8.6 15.6-16.1 27.3-16.1 4.5 0 8.6 1.1 11.7 3.2l2.1 1.4h1.5c4.5 1.7 29.1 14 53.5 41.9 21.7 24.9 47.6 68.1 47.6 132.2 0 72.9-24.5 120.2-45 147.1-22.6 29.5-45.6 42.2-50.4 44.1h-2.4l-2.4 2.4c-3.2 3-5.7 3.2-11.3 3.2z" fill="#088019" p-id="3692"></path></svg></span>`;
+      return `<div class="char-card" data-id="${item.id}">${cardHtml}</div>`;
+    }).join('') + '</div>';
+
+    area.querySelectorAll('.char-card').forEach(card => {
+      const item = list.find(c => String(c.id) === String(card.dataset.id));
+      if (!item) return;
+      card.onclick = (e) => {
+        if (e.target.closest('.char-play')) { e.stopPropagation(); playCategoryItem(item); }
+        else if (e.target.closest('.char-hanzi')) { openCategoryEditModal(item); }
+      };
+      card.oncontextmenu = (e) => { e.preventDefault(); deleteCategoryItem(item); };
+      let pt; card.addEventListener('touchstart', () => { pt = setTimeout(() => deleteCategoryItem(item), 600); });
+      card.addEventListener('touchend', () => clearTimeout(pt));
+      card.addEventListener('touchmove', () => clearTimeout(pt));
+    });
+  }
+}
+
+async function playCategoryItem(item) {
+  window.speechSynthesis.cancel();
+  await new Promise(r => setTimeout(r, 50));
+  if (item.content) await speak(item.content, { cancel: false });
+  await new Promise(r => setTimeout(r, 100));
+  if (item.ciyu) await speak(item.ciyu, { cancel: false });
+}
+
+function deleteCategoryItem(item) {
+  confirmDialog('确认删除', `确定删除「${item.content}」吗？`, () => {
+    const cat = charState.currentCategory, g = charState.currentGrade;
+    const arr = getCategoryGradeData(cat, g);
+    const idx = arr.findIndex(c => c.id === item.id);
+    if (idx > -1) { arr.splice(idx, 1); saveCategoryGradeData(cat, g); refreshCategoryPage(); showToast('已删除'); }
+  });
+}
+
+function initCategoryPage() {
+  document.getElementById('cateUnitFilter').onchange = (e) => { charState.filterUnitIndex = parseInt(e.target.value); charState.filterLessonIndex = 0; refreshCategoryPage(); };
+  document.getElementById('cateLessonFilter').onchange = (e) => { charState.filterLessonIndex = parseInt(e.target.value); refreshCategoryPage(); };
+  document.getElementById('cateAddBtn').onclick = () => openCategoryAddModal();
+  document.getElementById('cateManageBtn').onclick = () => openCategoryManageModal();
+}
+
+function openCategoryAddModal() {
+  const cat = charState.currentCategory;
+  let form = { gradeIndex: charState.currentGrade, unitIndex: 0, lessonIndex: 0, content: '' };
+  const ph = { hanzi: '如：诗｜shī（诗人）shī rén，碧｜bì（碧绿）bì lǜ', ciyu: '如：高兴｜gāo xìng，快乐｜kuài lè', chengyu: '如：春暖花开｜chūn nuǎn huā kāi', gushi: '如：静夜思｜jìng yè sī', jilei: '如：一年之计在于春｜yī nián zhī jì zài yú chūn' };
+  function getHtml() {
+    const units = getGradeUnits(form.gradeIndex);
+    const lessons = form.unitIndex > 0 ? ((units[form.unitIndex - 1] || { lessons: [] }).lessons || []) : [];
+    return `<div class="modal-header"><span class="modal-title">添加${CATEGORY_LABELS[cat]}</span><span class="modal-close" onclick="closeModal()">×</span></div>
+      <div class="form-group"><label class="form-label">年级</label><select class="form-select" id="addGrade"><option value="">请选择年级</option>${GRADES.map((g, i) => `<option value="${i}" ${form.gradeIndex === i ? 'selected' : ''}>${g}</option>`).join('')}</select></div>
+      <div class="form-group"><label class="form-label">单元</label><div class="form-row"><select class="form-select" id="addUnit"><option value="0">选择单元</option>${units.map((u, i) => `<option value="${i + 1}" ${form.unitIndex === i + 1 ? 'selected' : ''}>${u.name}</option>`).join('')}</select><div class="form-row-btn" id="addUnitBtn">+</div></div></div>
+      <div class="form-group"><label class="form-label">课文</label><div class="form-row"><select class="form-select" id="addLesson"><option value="0">选择课文</option>${lessons.map((l, i) => `<option value="${i + 1}" ${form.lessonIndex === i + 1 ? 'selected' : ''}>${l.name}</option>`).join('')}</select><div class="form-row-btn" id="addLessonBtn">+</div></div></div>
+      <div class="form-group"><label class="form-label">内容</label><textarea class="form-textarea" id="addContent" placeholder="${ph[cat] || '请输入内容'}">${form.content}</textarea></div>
+      <button class="btn btn-primary btn-block" id="addSubmitBtn">添加</button>`;
+  }
+  function bindForm() {
+    document.getElementById('addGrade').onchange = (e) => { form.gradeIndex = e.target.value === '' ? null : parseInt(e.target.value); form.unitIndex = 0; form.lessonIndex = 0; showModal(getHtml()); bindForm(); };
+    document.getElementById('addUnit').onchange = (e) => { form.unitIndex = parseInt(e.target.value); form.lessonIndex = 0; showModal(getHtml()); bindForm(); };
+    document.getElementById('addLesson').onchange = (e) => { form.lessonIndex = parseInt(e.target.value); };
+    document.getElementById('addContent').oninput = (e) => { form.content = e.target.value; };
+    document.getElementById('addUnitBtn').onclick = () => {
+      if (form.gradeIndex === null) { showToast('请先选择年级'); return; }
+      showModal(`<div class="modal-header"><span class="modal-title">添加单元</span><span class="modal-close" onclick="closeModal()">×</span></div><div class="form-group"><label class="form-label">名称</label><input class="form-input" id="quickAddName" placeholder="如：第一单元" /></div><button class="btn btn-primary btn-block" id="quickAddConfirm">确定</button>`);
+      document.getElementById('quickAddConfirm').onclick = () => {
+        const name = document.getElementById('quickAddName').value.trim(); if (!name) { showToast('请输入名称'); return; }
+        const id = String(Date.now()), key = gradeKey(form.gradeIndex);
+        appState.cateData[key].push({ id, name, type: 'unit', grade: form.gradeIndex, lessons: [] });
+        form.unitIndex = appState.cateData[key].length; form.lessonIndex = 0; saveCateData(); showModal(getHtml()); bindForm(); showToast('添加成功');
+      };
+    };
+    document.getElementById('addLessonBtn').onclick = () => {
+      if (form.gradeIndex === null) { showToast('请先选择年级'); return; }
+      if (form.unitIndex === 0) { showToast('请先选择单元'); return; }
+      showModal(`<div class="modal-header"><span class="modal-title">添加课文</span><span class="modal-close" onclick="closeModal()">×</span></div><div class="form-group"><label class="form-label">名称</label><input class="form-input" id="quickAddName" placeholder="如：第1课 春天来了" /></div><button class="btn btn-primary btn-block" id="quickAddConfirm">确定</button>`);
+      document.getElementById('quickAddConfirm').onclick = () => {
+        const name = document.getElementById('quickAddName').value.trim(); if (!name) { showToast('请输入名称'); return; }
+        const id = String(Date.now()), key = gradeKey(form.gradeIndex);
+        appState.cateData[key][form.unitIndex - 1].lessons.push({ id, name, type: 'lesson', grade: form.gradeIndex });
+        form.lessonIndex = appState.cateData[key][form.unitIndex - 1].lessons.length; saveCateData(); showModal(getHtml()); bindForm(); showToast('添加成功');
+      };
+    };
+    document.getElementById('addSubmitBtn').onclick = () => {
+      if (form.gradeIndex === null) { showToast('请选择年级'); return; }
+      if (form.unitIndex === 0) { showToast('请选择单元'); return; }
+      if (form.lessonIndex === 0) { showToast('请选择课文'); return; }
+      const content = document.getElementById('addContent').value.trim(); if (!content) { showToast('请输入内容'); return; }
+      const gi = form.gradeIndex, units = getGradeUnits(gi), unitId = units[form.unitIndex - 1].id;
+      const lessons = (units[form.unitIndex - 1] || { lessons: [] }).lessons || [], lessonId = lessons[form.lessonIndex - 1].id;
+      const list = getCategoryGradeData(cat, gi); const segs = content.split(/[，,]/).filter(s => s.trim());
+      segs.forEach(seg => {
+        const tr = seg.trim(); if (!tr) return;
+        let ciyu = '', ciyupy = '', before = tr, after = '';
+        const m = tr.match(/[（(]([^）)]+)[）)]/);
+        if (m) {
+          ciyu = m[1].trim();
+          const parenStart = tr.search(/[（(]/), parenEnd = tr.search(/[）)]/);
+          before = tr.slice(0, parenStart).trim();
+          after = tr.slice(parenEnd + 1).trim();
+          ciyupy = after;
+        }
+        const parts = before.split(/[｜|]/); const text = (parts[0] || '').trim(), py = (parts[1] || '').trim(); if (!text) return;
+        if (cat === 'hanzi' && !parts[1] && text.length > 1 && segs.length === 1) {
+          [...text.replace(/\s+/g, '')].forEach(ch => list.push({ id: Date.now() + Math.random(), content: ch, category: cat, pinyin: '', ciyu: '', ciyupy: '', unitId, lessonId, times: 0, yes: 0, wrong: 0 }));
+        } else {
+          list.push({ id: Date.now() + Math.random(), content: text, category: cat, pinyin: py, ciyu, ciyupy, unitId, lessonId, times: 0, yes: 0, wrong: 0 });
+        }
+      });
+      charState.currentGrade = gi; saveCategoryGradeData(cat, gi); closeModal(); refreshCategoryPage(); showToast('添加成功');
+    };
+  }
+  showModal(getHtml()); bindForm();
+}
+
+function openCategoryEditModal(item) {
+  const cat = charState.currentCategory;
+  let ig = charState.currentGrade;
+  for (let i = 0; i < 6; i++) { const arr = getCategoryGradeData(cat, i); if (arr.find(c => c.id === item.id)) { ig = i; break; } }
+  const gu = getGradeUnits(ig); let ui = 0, li = 0, su = null;
+  if (item.unitId) { const idx = gu.findIndex(u => String(u.id) === String(item.unitId)); if (idx > -1) { ui = idx + 1; su = gu[idx]; } }
+  if (item.lessonId && su) { const idx = (su.lessons || []).findIndex(l => String(l.id) === String(item.lessonId)); if (idx > -1) li = idx + 1; }
+  let ef = { id: item.id, originalGrade: ig, gradeIndex: ig, unitIndex: ui, lessonIndex: li, content: item.content || '', ciyu: item.ciyu || '', ciyupy: item.ciyupy || '' };
+  function getHtml() {
+    const units = ef.gradeIndex !== null ? getGradeUnits(ef.gradeIndex) : [];
+    const lessons = (ef.gradeIndex !== null && ef.unitIndex > 0) ? ((units[ef.unitIndex - 1] || { lessons: [] }).lessons || []) : [];
+    return `<div class="modal-header"><span class="modal-title">修改${CATEGORY_LABELS[cat]}</span><span class="modal-close" onclick="closeModal()">×</span></div>
+      <div class="form-group"><label class="form-label">年级</label><select class="form-select" id="editGrade">${GRADES.map((g, i) => `<option value="${i}" ${ef.gradeIndex === i ? 'selected' : ''}>${g}</option>`).join('')}</select></div>
+      <div class="form-group"><label class="form-label">单元</label><select class="form-select" id="editUnit"><option value="0">选择单元</option>${units.map((u, i) => `<option value="${i + 1}" ${ef.unitIndex === i + 1 ? 'selected' : ''}>${u.name}</option>`).join('')}</select></div>
+      <div class="form-group"><label class="form-label">课文</label><select class="form-select" id="editLesson"><option value="0">选择课文</option>${lessons.map((l, i) => `<option value="${i + 1}" ${ef.lessonIndex === i + 1 ? 'selected' : ''}>${l.name}</option>`).join('')}</select></div>
+      <div class="form-group"><label class="form-label">内容</label><input class="form-input" id="editContent" value="${ef.content}" placeholder="请输入内容" /></div>
+      <div class="form-group"><label class="form-label">词语</label><input class="form-input" id="editCiyu" value="${ef.ciyu}" placeholder="请输入词语" /></div>
+      <div class="form-group"><label class="form-label">词语拼音</label><input class="form-input" id="editCiyupy" value="${ef.ciyupy}" placeholder="如 shi ren" /></div>
+      <button class="btn btn-primary btn-block" id="editSaveBtn">保存</button>`;
+  }
+  function bindEdit() {
+    document.getElementById('editGrade').onchange = (e) => { ef.gradeIndex = parseInt(e.target.value); ef.unitIndex = 0; ef.lessonIndex = 0; showModal(getHtml()); bindEdit(); };
+    document.getElementById('editUnit').onchange = (e) => { ef.unitIndex = parseInt(e.target.value); ef.lessonIndex = 0; showModal(getHtml()); bindEdit(); };
+    document.getElementById('editLesson').onchange = (e) => { ef.lessonIndex = parseInt(e.target.value); };
+    document.getElementById('editSaveBtn').onclick = () => {
+      if (ef.unitIndex === 0) { showToast('请选择单元'); return; } if (ef.lessonIndex === 0) { showToast('请选择课文'); return; }
+      const content = document.getElementById('editContent').value.trim(), ciyu = document.getElementById('editCiyu').value.trim(), ciyupy = document.getElementById('editCiyupy').value.trim();
+      if (!content) { showToast('请输入内容'); return; }
+      const og = ef.originalGrade, ng = ef.gradeIndex, units = getGradeUnits(ng), unitId = units[ef.unitIndex - 1].id;
+      const lessons = (units[ef.unitIndex - 1] || { lessons: [] }).lessons || [], lessonId = lessons[ef.lessonIndex - 1].id;
+      const ol = getCategoryGradeData(cat, og), ii = ol.findIndex(c => c.id === ef.id); if (ii === -1) { showToast('未找到内容'); return; }
+      if (og === ng) { ol[ii].content = content; ol[ii].ciyu = ciyu; ol[ii].ciyupy = ciyupy; ol[ii].unitId = unitId; ol[ii].lessonId = lessonId; saveCategoryGradeData(cat, og); }
+      else { const mi = ol.splice(ii, 1)[0]; mi.content = content; mi.ciyu = ciyu; mi.ciyupy = ciyupy; mi.unitId = unitId; mi.lessonId = lessonId; getCategoryGradeData(cat, ng).push(mi); saveCategoryGradeData(cat, og); saveCategoryGradeData(cat, ng); charState.currentGrade = ng; }
+      closeModal(); refreshCategoryPage(); showToast('修改成功');
+    };
+  }
+  showModal(getHtml()); bindEdit();
+}
+
+function openCategoryManageModal() {
+  let mt = 'unit';
+  function getHtml() {
+    let list = mt === 'unit' ? getGradeUnits(charState.currentGrade) : getGradeUnits(charState.currentGrade).flatMap(u => (u.lessons || []).map(l => ({ ...l, _unitName: u.name })));
+    return `<div class="modal-header"><span class="modal-title">${GRADES[charState.currentGrade]} - 管理</span><span class="modal-close" onclick="closeModal()">×</span></div>
+      <div class="manage-tabs"><div class="manage-tab ${mt === 'unit' ? 'active' : ''}" data-tab="unit">单元</div><div class="manage-tab ${mt === 'lesson' ? 'active' : ''}" data-tab="lesson">课文</div></div>
+      <div class="manage-list">${list.length === 0 ? `<div style="text-align:center;padding:30px 0;color:#999;font-size:13px;">暂无${mt === 'unit' ? '单元' : '课文'}</div>` : list.map(item => `<div class="manage-item"><div class="manage-item-info"><span class="manage-item-id">${item.id}</span><span class="manage-item-name">${item.name}${item._unitName ? ' (' + item._unitName + ')' : ''}</span></div><span class="manage-item-delete" data-id="${item.id}" data-type="${item.type || (mt === 'unit' ? 'unit' : 'lesson')}">删除</span></div>`).join('')}</div>
+      <div class="clear-cate-btn" id="clearCateBtn">清空所有分类数据</div>`;
+  }
+  function bindManage() {
+    document.querySelectorAll('.manage-tab').forEach(t => { t.onclick = () => { mt = t.dataset.tab; showModal(getHtml()); bindManage(); }; });
+    document.querySelectorAll('.manage-item-delete').forEach(d => { d.onclick = () => { const id = d.dataset.id, type = d.dataset.type; confirmDialog('确认删除', '确定删除吗？关联的内容不会被删除。', () => { const key = gradeKey(charState.currentGrade); if (type === 'unit') { const idx = (appState.cateData[key] || []).findIndex(u => String(u.id) === String(id)); if (idx > -1) appState.cateData[key].splice(idx, 1); } else { for (const u of (appState.cateData[key] || [])) { const idx = (u.lessons || []).findIndex(l => String(l.id) === String(id)); if (idx > -1) { u.lessons.splice(idx, 1); break; } } } saveCateData(); showModal(getHtml()); bindManage(); }); }; });
+    document.getElementById('clearCateBtn').onclick = () => { confirmDialog('确认清空', '将清空所有单元和课文分类数据。确定清空吗？', () => { appState.cateData = { grade1: [], grade2: [], grade3: [], grade4: [], grade5: [], grade6: [] }; saveCateData(); showModal(getHtml()); bindManage(); showToast('已清空'); }); };
+  }
+  showModal(getHtml()); bindManage();
 }
 
 // ========== 听写页 ==========

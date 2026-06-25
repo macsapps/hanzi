@@ -585,10 +585,7 @@ html, body {
 /* ===== 汉字库 ===== */
 .char-list-area {
   padding: 12px 10px;
- 
-  position: absolute;
-  top: 155px;
-  height: calc(100vh - 220px);
+  flex: 1;
   overflow-y: auto;
 }
 
