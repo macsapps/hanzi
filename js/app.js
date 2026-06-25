@@ -925,8 +925,16 @@ function renderErrorChars() {
 
 // ========== 初始化 ==========
 function init() {
-  // 登录拦截：未登录跳转到登录页
-  if (!requireLogin()) return;
+  if (!isLoggedIn()) {
+    // 未登录：显示登录页，不初始化主应用
+    showLoginPage();
+    return;
+  }
+  startApp();
+}
+
+// 已登录：初始化主应用并进入统计页
+function startApp() {
   ensureDefaultSyncConfig();
 
   // 设置当前用户的数据空间
@@ -945,10 +953,37 @@ function init() {
     item.onclick = () => switchTab(item.dataset.tab);
   });
 
+  // 显示主应用外壳（navbar/tabbar），切到统计页
+  showAppShell();
   // 统计页不需要远端内容数据，仅检查是否首次登录（不依赖远端数据）
   checkFirstLogin();
   switchTab('statistics');
 }
+
+// 显示登录页（隐藏 navbar/tabbar，只显示 page-login）
+function showLoginPage() {
+  const navbar = document.getElementById('navbar');
+  if (navbar) navbar.style.display = 'none';
+  document.getElementById('tabbar').style.display = 'none';
+  document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
+  document.getElementById('page-login').classList.add('active');
+}
+
+// 显示主应用外壳（navbar/tabbar 显示）
+function showAppShell() {
+  const navbar = document.getElementById('navbar');
+  if (navbar) navbar.style.display = '';
+  document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
+}
+
+// 登录/注册成功后由 login.js 调用：进入主应用
+function onLoginSuccess() {
+  startApp();
+}
+
+// 暴露给 login.js / auth.js（logout）使用
+window.showLoginPage = showLoginPage;
+window.onLoginSuccess = onLoginSuccess;
 
 // ===== 首次登录检测：用户 synced=false，弹窗询问是否同步基础数据 =====
 async function checkFirstLogin() {

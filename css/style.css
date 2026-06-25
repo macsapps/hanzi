@@ -1596,7 +1596,8 @@ html, body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
+  flex: 1;
+  height: 100%;
   padding: 30px 24px;
   background: linear-gradient(180deg, var(--color-primary-light) 0%, var(--color-bg) 45%);
 }

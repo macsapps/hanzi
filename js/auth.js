@@ -46,19 +46,18 @@ function clearSession() {
   localStorage.removeItem(SESSION_KEY);
 }
 
-// 登录拦截：未登录则跳转登录页
+// 登录拦截：未登录返回 false（单页模式，不再做 location 跳转，由 app.js init 处理）
 function requireLogin() {
-  if (!isLoggedIn()) {
-    location.replace('login.html');
-    return false;
-  }
-  return true;
+  return isLoggedIn();
 }
 
 // 退出登录
 function logout() {
   clearSession();
-  location.replace('login.html');
+  // 单页切换到登录页（不跳转独立 login.html）
+  if (typeof window.showLoginPage === 'function') {
+    window.showLoginPage();
+  }
 }
 
 // 校验仓库可访问，并把仓库真实默认分支回填到 config（避免 branch 配置不匹配）
