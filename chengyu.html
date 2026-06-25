@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>成语</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="app">
+        <header class="navbar">
+            <span class="nav-back" onclick="history.back()">‹</span>
+            <span class="nav-title" id="pageTitle">成语</span>
+        </header>
+        <main class="main-content" id="mainContent">
+            <div class="grade-tabs" id="cateGradeTabs"></div>
+            <div class="filter-bar">
+                <div class="filter-picker">
+                    <select id="cateUnitFilter"><option value="0">全部单元</option></select>
+                </div>
+                <div class="filter-picker">
+                    <select id="cateLessonFilter"><option value="0">全部课文</option></select>
+                </div>
+            </div>
+            <div class="char-list-area" id="cateListArea"></div>
+        </main>
+        <button class="fab fab-manage" id="cateManageBtn">⚙</button>
+        <button class="fab" id="cateAddBtn">+</button>
+    </div>
+    <div id="toast" class="toast"></div>
+    <div id="modalMask" class="modal-mask" style="display:none;">
+        <div class="modal-box" id="modalBox"></div>
+    </div>
+    <div id="loadingMask" class="loading-mask" style="display:none;">
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loadingText">加载中...</div>
+    </div>
+    <script src="js/gitee.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/tts.js"></script>
+    <script src="js/category.js"></script>
+</body>
+</html>

@@ -29,49 +29,58 @@
                     </div>
                     <div class="stats-btn" id="goLatestBtn">
                         <span class="stats-btn-icon">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><polyline points="12,6 12,12 16,14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" />
+                                <polyline points="12,6 12,12 16,14" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" />
+                            </svg>
                         </span>
                         <span class="stats-btn-text">最新听写</span>
                     </div>
                     <div class="stats-btn" id="goHistoryBtn">
                         <span class="stats-btn-icon">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" stroke-width="2"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                                <rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor"
+                                    stroke-width="2" />
+                                <line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" stroke-width="2" />
+                                <line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" />
+                                <line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" />
+                            </svg>
                         </span>
                         <span class="stats-btn-text">历史听写</span>
                     </div>
                     <div class="stats-btn" id="goErrorBtn">
                         <span class="stats-btn-icon">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="2"/><polyline points="14,2 14,8 20,8" stroke="currentColor" stroke-width="2"/><line x1="16" y1="13" x2="8" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="16" y1="17" x2="8" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                                    stroke="currentColor" stroke-width="2" />
+                                <polyline points="14,2 14,8 20,8" stroke="currentColor" stroke-width="2" />
+                                <line x1="16" y1="13" x2="8" y2="13" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" />
+                                <line x1="16" y1="17" x2="8" y2="17" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" />
+                            </svg>
                         </span>
                         <span class="stats-btn-text">错词本</span>
                     </div>
                 </div>
             </section>
 
-            <!-- ============ 汉字库页 ============ -->
+            <!-- ============ 知识库页 ============ -->
             <section id="page-characters" class="page-section">
                 <div class="grade-tabs" id="charGradeTabs"></div>
-                <div class="filter-bar">
-                    <div class="filter-picker">
-                        <select id="charUnitFilter">
-                            <option value="0">全部单元</option>
-                        </select>
-                    </div>
-                    <div class="filter-picker">
-                        <select id="charLessonFilter">
-                            <option value="0">全部课文</option>
-                        </select>
-                    </div>
+                <div class="knowledge-page" id="knowledgePage">
+                    <div class="category-grid" id="categoryGrid"></div>
                 </div>
-                <div class="char-list-area" id="charListArea"></div>
-                <button class="fab fab-manage" id="charManageBtn">⚙</button>
-                <button class="fab" id="charAddBtn">+</button>
             </section>
 
             <!-- ============ 听写页 ============ -->
             <section id="page-dictation" class="page-section">
 
                 <div id="dict-select" class="dict-subpage active">
+                    <div class="grade-tabs" id="dictCategoryTabs"></div>
                     <div class="mode-tabs" id="dictModeTabs"></div>
                     <div class="grade-tabs" id="dictGradeTabs"></div>
                     <div class="filter-bar">
@@ -134,24 +143,10 @@
             <section id="page-mine" class="page-section">
                 <div class="mine-page">
                     <div class="section">
-                        <span class="section-title">同步设置</span>
-                        <div class="form-card">
-                            <div class="form-item">
-                                <span class="form-item-label">令牌</span>
-                                <input class="form-item-input" id="cfgToken" type="password" placeholder="请输入个人访问令牌" />
-                                <span class="form-item-eye" id="eyeBtn">🔒</span>
-                            </div>
-                            <div class="form-item">
-                                <span class="form-item-label">仓库地址</span>
-                                <input class="form-item-input" id="cfgRepo" placeholder="如：username/repo" />
-                            </div>
-                            <div class="form-item">
-                                <span class="form-item-label">分支</span>
-                                <input class="form-item-input" id="cfgBranch" placeholder="master" />
-                            </div>
-                        </div>
-                        <div style="margin-top:16px;">
-                            <button class="btn btn-primary btn-block" id="saveCfgBtn">保存配置</button>
+                        <span class="section-title">账户</span>
+                        <div class="account-info" id="accountInfo">未登录</div>
+                        <div style="margin-top:14px;">
+                            <button class="btn btn-outline btn-block" id="logoutBtn">退出登录</button>
                         </div>
                     </div>
                     <div class="section">
@@ -160,8 +155,8 @@
                             <span class="sync-status-text" id="syncStatusText"></span>
                         </div>
                         <div class="btn-row">
-                            <button class="btn btn-primary" id="pushBtn">推送至 Gitee</button>
-                            <button class="btn btn-outline" id="pullBtn">从 Gitee 拉取</button>
+                            <button class="btn btn-primary" id="pushBtn">推送数据</button>
+                            <button class="btn btn-outline" id="pullBtn">更新数据</button>
                         </div>
                     </div>
                 </div>
@@ -204,22 +199,40 @@
         <nav class="tabbar" id="tabbar">
             <div class="tab-item active" data-tab="statistics">
                 <span class="tab-icon">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="3" y="12" width="4" height="9" rx="1" stroke="currentColor" stroke-width="2"/><rect x="10" y="7" width="4" height="14" rx="1" stroke="currentColor" stroke-width="2"/><rect x="17" y="3" width="4" height="18" rx="1" stroke="currentColor" stroke-width="2"/></svg>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <rect x="3" y="12" width="4" height="9" rx="1" stroke="currentColor" stroke-width="2" />
+                        <rect x="10" y="7" width="4" height="14" rx="1" stroke="currentColor" stroke-width="2" />
+                        <rect x="17" y="3" width="4" height="18" rx="1" stroke="currentColor" stroke-width="2" />
+                    </svg>
                 </span><span class="tab-text">统计</span>
             </div>
             <div class="tab-item" data-tab="characters">
                 <span class="tab-icon">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="currentColor" stroke-width="2"/></svg>
-                </span><span class="tab-text">汉字库</span>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" />
+                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="currentColor"
+                            stroke-width="2" />
+                    </svg>
+                </span><span class="tab-text">知识库</span>
             </div>
             <div class="tab-item" data-tab="dictation">
                 <span class="tab-icon">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M11 5L6 9H2v6h4l5 4V5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <path d="M11 5L6 9H2v6h4l5 4V5z" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" />
+                    </svg>
                 </span><span class="tab-text">听写</span>
             </div>
             <div class="tab-item" data-tab="mine">
                 <span class="tab-icon">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2" />
+                        <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" />
+                    </svg>
                 </span><span class="tab-text">我的</span>
             </div>
         </nav>
@@ -238,9 +251,9 @@
     </div>
 
     <script src="js/gitee.js"></script>
+    <script src="js/auth.js"></script>
     <script src="js/tts.js"></script>
     <script src="js/app.js"></script>
 </body>
 
 </html>
-

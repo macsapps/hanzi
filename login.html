@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>汉字听写 - 登录</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+    <div id="app" class="login-app">
+        <div class="login-page">
+            <div class="login-hero">
+                <div class="login-hero-icon">📖</div>
+                <div class="login-hero-title">小学语文助手</div>
+                <div class="login-hero-sub" id="loginHeroSub">登录后开始使用小助手</div>
+            </div>
+
+            <div class="section login-card">
+                <span class="section-title" id="formTitle">登录</span>
+
+                <div class="form-card">
+                    <div class="form-item">
+                        <span class="form-item-label">用户名</span>
+                        <input class="form-item-input" id="usernameInput" type="text" placeholder="请输入用户名" autocomplete="off" />
+                    </div>
+                    <div class="form-item">
+                        <span class="form-item-label">密码</span>
+                        <input class="form-item-input" id="passwordInput" type="password" placeholder="请输入密码" autocomplete="off" />
+                        <span class="form-item-eye" id="eyeBtn">🔒</span>
+                    </div>
+                </div>
+
+                <div style="margin-top:18px;">
+                    <button class="btn btn-primary btn-block" id="submitBtn">登录</button>
+                </div>
+                <div class="login-switch" id="switchModeBtn">没有账号？去注册</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <div id="loadingMask" class="loading-mask" style="display:none;">
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loadingText">加载中...</div>
+    </div>
+
+    <script src="js/gitee.js"></script>
+    <script src="js/auth.js"></script>
+    <script>
+      // 登录页脚本：登录 / 注册切换
+      let isRegisterMode = false;
+      let showPwd = false;
+
+      // 默认 Gitee 同步配置，与 app.js 保持一致
+      const DEFAULT_SYNC_CONFIG = {
+        token: '51a0167ca18909d6055b158f8875c922',
+        repo: 'https://gitee.com/hesir00/dictation_sql.git',
+        branch: 'master',
+        autoSync: false
+      };
+
+      // 启动时确保配置存在：已有用户配置则保留，否则写入默认配置
+      (function ensureDefaultConfig() {
+        try {
+          const raw = localStorage.getItem('giteeSyncConfig');
+          if (raw) {
+            const cfg = JSON.parse(raw);
+            if (cfg && cfg.token && cfg.repo) return;
+          }
+        } catch (e) {}
+        saveSyncConfig(DEFAULT_SYNC_CONFIG);
+      })();
+
+      function showToast(title) {
+        const t = document.getElementById('toast');
+        t.textContent = title;
+        t.className = 'toast show';
+        clearTimeout(t._timer);
+        t._timer = setTimeout(() => { t.className = 'toast'; }, 2200);
+      }
+      function showLoading(title) { document.getElementById('loadingText').textContent = title || '加载中...'; document.getElementById('loadingMask').style.display = 'flex'; }
+      function hideLoading() { document.getElementById('loadingMask').style.display = 'none'; }
+
+      // 已登录则直接进入系统
+      if (isLoggedIn()) {
+        location.replace('index.html');
+      }
+
+      function applyMode() {
+        if (isRegisterMode) {
+          document.getElementById('formTitle').textContent = '注册';
+          document.getElementById('submitBtn').textContent = '注册';
+          document.getElementById('loginHeroSub').textContent = '创建账号开始听写';
+          document.getElementById('switchModeBtn').textContent = '已有账号？去登录';
+        } else {
+          document.getElementById('formTitle').textContent = '登录';
+          document.getElementById('submitBtn').textContent = '登录';
+          document.getElementById('loginHeroSub').textContent = '登录后开始听写';
+          document.getElementById('switchModeBtn').textContent = '没有账号？去注册';
+        }
+      }
+
+      document.getElementById('switchModeBtn').onclick = () => {
+        isRegisterMode = !isRegisterMode;
+        applyMode();
+      };
+
+      document.getElementById('eyeBtn').onclick = () => {
+        showPwd = !showPwd;
+        document.getElementById('passwordInput').type = showPwd ? 'text' : 'password';
+        document.getElementById('eyeBtn').textContent = showPwd ? '👁' : '🔒';
+      };
+
+      document.getElementById('submitBtn').onclick = async () => {
+        const name = document.getElementById('usernameInput').value;
+        const password = document.getElementById('passwordInput').value;
+        if (!name) { showToast('请输入用户名'); return; }
+        if (!password) { showToast('请输入密码'); return; }
+
+        showLoading(isRegisterMode ? '注册中...' : '登录中...');
+        const result = isRegisterMode
+          ? await registerUser(name, password)
+          : await loginUser(name, password);
+        hideLoading();
+
+        if (result.ok) {
+          showToast(isRegisterMode ? '注册成功' : '登录成功');
+          setTimeout(() => { location.replace('index.html'); }, 400);
+        } else {
+          showToast(result.error || '操作失败');
+        }
+      };
+
+      // 回车提交
+      document.getElementById('passwordInput').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') document.getElementById('submitBtn').click();
+      });
+      document.getElementById('usernameInput').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') document.getElementById('passwordInput').focus();
+      });
+    </script>
+</body>
+
+</html>
