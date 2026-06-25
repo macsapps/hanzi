@@ -1,8 +1,10 @@
 // ========== 登录页逻辑（独立，不并入 app.js） ==========
-// 复用 app.js 的 showToast / showLoading / hideLoading（app.js 先加载，已定义）。
+// 复用 app.js 的 showToast / showLoading / hideLoading / ensureDefaultSyncConfig（app.js 先加载，已定义）。
 // 复用 auth.js 的 loginUser / registerUser / isLoggedIn。
 // 登录/注册成功后调用 app.js 暴露的 onLoginSuccess()，单页切换到主应用，不再 location 跳转。
 (function () {
+  // 登录页加载时确保同步配置已写入（app.js 的 startApp 在未登录时不会执行，由 login.js 负责初始化配置）
+  ensureDefaultSyncConfig();
   let isRegisterMode = false;
   let showPwd = false;
 
