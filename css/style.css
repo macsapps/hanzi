@@ -21,7 +21,7 @@
   --color-surface: #FFFFFF;
   --color-text-primary: #2D2D2D;
   --color-text-secondary: #8E8E93;
-  --color-text-hint: #B0B0B0;
+  --color-text-hint: #142351;
   --color-border: #E8E4DF;
   --color-border-light: #F0ECE7;
   --radius-sm: 8px;
@@ -103,7 +103,7 @@ html, body {
 .nav-back {
   position: absolute;
   left: 12px;
-  font-size: 22px;
+  font-size: 32px;
   color: var(--color-primary);
   cursor: pointer;
   padding: 4px 8px;
@@ -1442,9 +1442,9 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--color-bg);
   cursor: pointer;
-  border: 2px solid var(--color-border);
+  /* border: 1px solid var(--color-border); */
+  border: none;
   transition: all 0.2s ease;
 }
 .mark-btn:active {
@@ -1638,5 +1638,185 @@ html, body {
   color: var(--color-primary);
   cursor: pointer;
   user-select: none;
+}
+
+/* ===== 单元课文管理入口卡片 ===== */
+.manage-entry {
+  width: 100%;
+  max-width: 400px;
+  margin-top: 20px;
+  padding: 18px 20px;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  border: 2px solid var(--color-border-light);
+  position: relative;
+}
+.manage-entry:active {
+  transform: scale(0.97);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+}
+.manage-entry-icon {
+  font-size: 32px;
+  flex-shrink: 0;
+}
+.manage-entry-info {
+  flex: 1;
+}
+.manage-entry-label {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+.manage-entry-desc {
+  font-size: 12px;
+  color: var(--color-text-hint);
+  margin-top: 3px;
+}
+.manage-entry-arrow {
+  font-size: 24px;
+  color: var(--color-text-hint);
+  flex-shrink: 0;
+}
+
+/* ===== 单元课文管理页 ===== */
+.um-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px;
+}
+.um-section {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: 16px 14px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow-sm);
+}
+.um-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--color-border-light);
+}
+.um-section-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+.um-add-btn {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.um-add-btn:active {
+  opacity: 0.8;
+}
+.um-filter {
+  margin-bottom: 12px;
+}
+.um-filter-select {
+  width: 100%;
+  height: 38px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0 12px;
+  background: var(--color-bg);
+  font-size: 14px;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  color: var(--color-text-primary);
+}
+.um-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.um-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--color-border-light);
+}
+.um-item:last-child {
+  border-bottom: none;
+}
+.um-item-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+.um-item-index {
+  font-size: 12px;
+  color: var(--color-text-hint);
+  width: 24px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.um-item-name {
+  font-size: 15px;
+  color: var(--color-text-primary);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.um-item-lesson-count {
+  font-size: 11px;
+  color: var(--color-text-hint);
+  background: var(--color-bg);
+  padding: 2px 8px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+.um-item-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.um-item-btn {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.um-item-btn:active {
+  opacity: 0.7;
+}
+.um-item-btn-edit {
+  background: var(--color-secondary-light);
+  color: var(--color-secondary);
+}
+.um-item-btn-del {
+  background: var(--color-error-bg);
+  color: var(--color-error);
+}
+.um-empty {
+  text-align: center;
+  padding: 20px 0;
+  color: var(--color-text-hint);
+  font-size: 13px;
 }
 

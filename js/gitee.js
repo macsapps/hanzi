@@ -404,6 +404,156 @@ async function pushCountDataRecords(config, folderName, fileName, records, sha) 
   }
 }
 
+// ========== count_hanzi 听写记录（按月/按天） ==========
+// 与 count_data 结构完全一致，仅路径前缀不同：{space}/count_hanzi/YYYYMM/YYYYMMDD.json
+// 听写完成后写入；最新听写 / 历史听写从此读取。
+
+function buildHanziUrl(config, filePath) {
+  const parsed = parseRepo(config.repo);
+  if (!parsed) return null;
+  return `${GITEE_API_BASE}/repos/${parsed.owner}/${parsed.repo}/contents/${encodeFilePath(filePath)}`;
+}
+
+// 听写完成：把记录追加到当天文件（不存在则创建），返回写入的 folderName/fileName 供调用方记录
+async function pushHanziRecordsToGitee(records, config, date) {
+  if (!isSyncConfigured(config)) throw new Error('请先配置 Gitee 令牌和仓库地址');
+  const d = date || new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const folderName = `${yyyy}${mm}`;
+  const fileName = `${yyyy}${mm}${dd}.json`;
+  const filePath = `${getSpacePrefix()}/count_hanzi/${folderName}/${fileName}`;
+  const url = buildHanziUrl(config, filePath);
+  if (!url) throw new Error('仓库地址格式错误');
+
+  let existingRecords = [];
+  let sha = '';
+  try {
+    const resp = await fetch(`${url}?access_token=${config.token.trim()}&ref=${config.branch || DEFAULT_BRANCH}`);
+    const data = await resp.json();
+    if (resp.ok && data && data.content) {
+      const parsed = JSON.parse(decodeBase64(data.content));
+      if (Array.isArray(parsed)) existingRecords = parsed;
+      sha = data.sha || '';
+    }
+  } catch (e) {}
+
+  const merged = [...existingRecords, ...records];
+  const base64Content = encodeBase64(JSON.stringify(merged, null, 2));
+  const branch = config.branch || DEFAULT_BRANCH;
+  const token = config.token.trim();
+  const commitMessage = `同步听写记录 ${fileName}`;
+
+  if (sha) {
+    // 文件已存在，PUT 更新
+    const updateResp = await fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ access_token: token, content: base64Content, sha, branch, message: commitMessage })
+    });
+    if (!updateResp.ok) {
+      const errData = await updateResp.json().catch(() => ({}));
+      throw new Error((errData && errData.message) || `更新失败(${updateResp.status})`);
+    }
+  } else {
+    // 文件不存在，POST 创建（复用 pushFileToGitee 自动处理创建/更新）
+    await pushFileToGitee(url, JSON.stringify(merged, null, 2), config, commitMessage);
+  }
+  return { folderName, fileName };
+}
+
+// 拉取单日听写记录（按完整文件路径）
+async function pullHanziRecordsFromGitee(config, filePath) {
+  if (!isSyncConfigured(config)) throw new Error('请先配置 Gitee 令牌和仓库地址');
+  const parsed = parseRepo(config.repo);
+  if (!parsed) throw new Error('仓库地址格式错误');
+  const url = `${GITEE_API_BASE}/repos/${parsed.owner}/${parsed.repo}/contents/${encodeFilePath(filePath)}`;
+  const resp = await fetch(`${url}?access_token=${config.token.trim()}&ref=${config.branch || DEFAULT_BRANCH}`);
+  const data = await resp.json();
+  if (resp.ok && data && data.content) {
+    const sha = data.sha || '';
+    try {
+      const records = JSON.parse(decodeBase64(data.content));
+      return { records: Array.isArray(records) ? records : [], sha };
+    } catch (e) {
+      return { records: [], sha };
+    }
+  } else if (resp.status === 404) {
+    return { records: [], sha: '' };
+  } else {
+    throw new Error('拉取听写记录失败(' + resp.status + ')');
+  }
+}
+
+// 列出某月文件夹下的所有日期文件（复用 listCountDataFolder，路径无关）
+async function listHanziDataFolder(config, folderPath) {
+  return listCountDataFolder(config, folderPath);
+}
+
+// 列出 count_hanzi 下所有月份目录
+async function listHanziDataDirs(config) {
+  if (!isSyncConfigured(config)) throw new Error('请先配置 Gitee 令牌和仓库地址');
+  const parsed = parseRepo(config.repo);
+  if (!parsed) throw new Error('仓库地址格式错误');
+  const url = `${GITEE_API_BASE}/repos/${parsed.owner}/${parsed.repo}/contents/${encodeFilePath(`${getSpacePrefix()}/count_hanzi`)}`;
+  const resp = await fetch(`${url}?access_token=${config.token.trim()}&ref=${config.branch || DEFAULT_BRANCH}`);
+  const data = await resp.json();
+  if (resp.ok && Array.isArray(data)) {
+    return data.filter(item => item.type === 'dir').map(item => item.name).sort();
+  } else if (resp.status === 404) {
+    return [];
+  } else {
+    throw new Error('获取目录列表失败(' + resp.status + ')');
+  }
+}
+
+// 获取最新一天的听写记录
+async function fetchLatestHanziData(config) {
+  const dirs = await listHanziDataDirs(config);
+  if (dirs.length === 0) {
+    return { records: [], dateLabel: '', folderName: '', fileName: '', sha: '' };
+  }
+  const latestDir = dirs[dirs.length - 1];
+  const folderPath = `${getSpacePrefix()}/count_hanzi/${latestDir}`;
+  const files = await listHanziDataFolder(config, folderPath);
+  if (files.length === 0) {
+    return { records: [], dateLabel: '', folderName: '', fileName: '', sha: '' };
+  }
+  const sortedFiles = [...files].sort();
+  const latestFile = sortedFiles[sortedFiles.length - 1];
+  const filePath = `${folderPath}/${latestFile}`;
+  const { records, sha } = await pullHanziRecordsFromGitee(config, filePath);
+  const name = latestFile.replace('.json', '');
+  const y = name.slice(0, 4);
+  const m = name.slice(4, 6);
+  const d = name.slice(6, 8);
+  const dateLabel = `${y}年${m}月${d}日`;
+  return { records, sha, dateLabel, folderName: latestDir, fileName: latestFile };
+}
+
+// 标记后更新当天听写记录（按 folderName/fileName 定位）
+async function pushHanziRecordsUpdate(config, folderName, fileName, records, sha) {
+  if (!isSyncConfigured(config)) throw new Error('请先配置 Gitee 令牌和仓库地址');
+  if (!sha) throw new Error('缺少文件 sha，无法更新');
+  const filePath = `${getSpacePrefix()}/count_hanzi/${folderName}/${fileName}`;
+  const url = buildHanziUrl(config, filePath);
+  if (!url) throw new Error('仓库地址格式错误');
+  const base64Content = encodeBase64(JSON.stringify(records, null, 2));
+  const branch = config.branch || DEFAULT_BRANCH;
+  const token = config.token.trim();
+  const resp = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_token: token, content: base64Content, sha, branch, message: `更新听写记录 ${fileName}` })
+  });
+  if (!resp.ok) {
+    const errData = await resp.json().catch(() => ({}));
+    throw new Error((errData && errData.message) || `更新失败(${resp.status})`);
+  }
+}
+
+
 // ========== count_error 错误记录 ==========
 function getErrorDataUrl(config, filePath) {
   const parsed = parseRepo(config.repo);

@@ -14,7 +14,7 @@
 
         <header class="navbar" id="navbar">
             <span class="nav-back" id="navBack" style="display:none;">‹</span>
-            <span class="nav-title" id="navTitle">统计</span>
+            <span class="nav-title" id="navTitle">首页</span>
         </header>
 
         <main class="main-content" id="mainContent">
@@ -102,6 +102,14 @@
                 <div class="grade-tabs" id="charGradeTabs"></div>
                 <div class="knowledge-page" id="knowledgePage">
                     <div class="category-grid" id="categoryGrid"></div>
+                    <div class="manage-entry" id="unitManageEntry">
+                        <div class="manage-entry-icon">🗂️</div>
+                        <div class="manage-entry-info">
+                            <div class="manage-entry-label">单元课文管理</div>
+                            <div class="manage-entry-desc">管理各年级的单元与课文</div>
+                        </div>
+                        <div class="manage-entry-arrow">›</div>
+                    </div>
                 </div>
             </section>
 
@@ -223,6 +231,32 @@
                 <div class="error-char-scroll" id="errorCharArea"></div>
             </section>
 
+            <!-- ============ 单元课文管理页（子页） ============ -->
+            <section id="page-unitmanage" class="page-section">
+                <div class="grade-tabs" id="umGradeTabs"></div>
+                <div class="um-content">
+                    <div class="um-section" id="umUnitSection">
+                        <div class="um-section-header">
+                            <span class="um-section-title">单元管理</span>
+                            <button class="um-add-btn" id="umAddUnitBtn">+ 添加单元</button>
+                        </div>
+                        <div class="um-list" id="umUnitList"></div>
+                    </div>
+                    <div class="um-section" id="umLessonSection">
+                        <div class="um-section-header">
+                            <span class="um-section-title">课文管理</span>
+                            <button class="um-add-btn" id="umAddLessonBtn">+ 添加课文</button>
+                        </div>
+                        <div class="um-filter" id="umLessonFilterWrap">
+                            <select class="um-filter-select" id="umLessonUnitFilter">
+                                <option value="0">选择单元</option>
+                            </select>
+                        </div>
+                        <div class="um-list" id="umLessonList"></div>
+                    </div>
+                </div>
+            </section>
+
             <!-- ============ 知识库分类详情页（子页） ============ -->
             <section id="page-category" class="page-section">
                 <div class="grade-tabs" id="cateGradeTabs"></div>
@@ -253,7 +287,7 @@
                         <rect x="10" y="7" width="4" height="14" rx="1" stroke="currentColor" stroke-width="2" />
                         <rect x="17" y="3" width="4" height="18" rx="1" stroke="currentColor" stroke-width="2" />
                     </svg>
-                </span><span class="tab-text">统计</span>
+                </span><span class="tab-text">首页</span>
             </div>
             <div class="tab-item" data-tab="characters">
                 <span class="tab-icon">

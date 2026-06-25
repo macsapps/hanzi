@@ -130,8 +130,12 @@ let currentPage = 'statistics';
 function switchTab(tab) {
   currentPage = tab;
   document.querySelectorAll('.tab-item').forEach(item => item.classList.toggle('active', item.dataset.tab === tab));
-  const titles = { statistics: '统计', characters: '知识库', dictation: '听写', mine: '我的' };
-  document.getElementById('navTitle').textContent = titles[tab] || '';
+  const titles = { statistics: '首页', characters: '知识库', dictation: '听写', mine: '我的' };
+  const navTitle = document.getElementById('navTitle');
+  navTitle.textContent = titles[tab] || '';
+  navTitle.style.visibility = '';
+  // 首页隐藏整个顶部导航栏
+  document.getElementById('navbar').style.display = (tab === 'statistics') ? 'none' : '';
   document.getElementById('tabbar').style.display = '';
   document.getElementById('navBack').style.display = 'none';
   document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
@@ -175,7 +179,10 @@ async function loadCategoryData(cat) {
 }
 
 function navigateTo(page) {
-  const titles = { history: '历史听写', latest: '最新听写', error: '错词本' };
+  const titles = { history: '历史听写', latest: '最新听写', error: '错词本', category: '知识库', unitmanage: '单元课文管理' };
+  // 子页面总是显示顶部导航栏
+  document.getElementById('navbar').style.display = '';
+  document.getElementById('navTitle').style.visibility = '';
   if (titles[page]) document.getElementById('navTitle').textContent = titles[page];
   document.getElementById('tabbar').style.display = 'none';
   document.getElementById('navBack').style.display = '';
@@ -247,6 +254,12 @@ function refreshCharacters() {
       navigateToCategory(cat, charState.currentGrade);
     };
   });
+
+  // 绑定单元课文管理入口
+  const entry = document.getElementById('unitManageEntry');
+  if (entry) {
+    entry.onclick = () => navigateToUnitManage();
+  }
 }
 
 function initCharacters() {
@@ -621,8 +634,8 @@ async function syncDictationRecords() {
     return;
   }
   try {
-    await pushCountDataToGitee(dictationState.dictationRecords, c);
-    console.log('听写记录已同步到 count_data/' + new Date().toISOString().slice(0, 10));
+    await pushHanziRecordsToGitee(dictationState.dictationRecords, c);
+    console.log('听写记录已同步到 count_hanzi/' + new Date().toISOString().slice(0, 10));
   } catch (e) {
     console.error('同步听写记录失败:', e.message);
   }
@@ -703,7 +716,7 @@ async function loadDateList() {
   if (!isSyncConfigured(config)) { container.innerHTML = '<div class="empty-tip"><span class="empty-text">请先配置同步</span></div>'; return; }
   try {
     const fn = '' + historyState.currentYear + String(historyState.currentMonth).padStart(2, '0');
-    const files = await listCountDataFolder(config, getSpacePrefix() + '/count_data/' + fn);
+    const files = await listHanziDataFolder(config, getSpacePrefix() + '/count_hanzi/' + fn);
     historyState.dateList = files.map(name => { const d = name.replace('.json', '').slice(-2); const m = name.replace('.json', '').slice(4, 6); return { fileName: name, label: m + '月' + d + '日' }; }).reverse();
     if (historyState.dateList.length === 0) { container.innerHTML = '<div class="empty-tip"><span class="empty-text">暂无听写记录</span></div>'; return; }
     container.innerHTML = historyState.dateList.map(item => '<div class="date-item ' + (historyState.selectedDate === item.fileName ? 'active' : '') + '" data-file="' + item.fileName + '"><span class="date-item-text">' + item.label + '</span></div>').join('');
@@ -719,7 +732,7 @@ async function selectDate(fileName) {
   const config = getSyncConfig(); if (!isSyncConfigured(config)) return;
   try {
     const fn = '' + historyState.currentYear + String(historyState.currentMonth).padStart(2, '0');
-    const result = await pullCountDataFromGitee(config, getSpacePrefix() + '/count_data/' + fn + '/' + fileName);
+    const result = await pullHanziRecordsFromGitee(config, getSpacePrefix() + '/count_hanzi/' + fn + '/' + fileName);
     historyState.selectedFileSha = result.sha || '';
     historyState.charList = (result.records || []).map(r => ({ ...r, yes: typeof r.yes === 'number' ? r.yes : 0 }));
     renderHistoryChars();
@@ -755,13 +768,13 @@ async function historyMarkYes(idx, value) {
   }
   const fn = '' + historyState.currentYear + String(historyState.currentMonth).padStart(2, '0'); const config = getSyncConfig();
   if (!isSyncConfigured(config)) return;
-  try { const result = await pullCountDataFromGitee(config, getSpacePrefix() + '/count_data/' + fn + '/' + historyState.selectedDate); historyState.selectedFileSha = result.sha || ''; historyState.charList = (result.records || []).map(r => ({ ...r, yes: typeof r.yes === 'number' ? r.yes : 0 })); renderHistoryChars(); } catch (e) { }
+  try { const result = await pullHanziRecordsFromGitee(config, getSpacePrefix() + '/count_hanzi/' + fn + '/' + historyState.selectedDate); historyState.selectedFileSha = result.sha || ''; historyState.charList = (result.records || []).map(r => ({ ...r, yes: typeof r.yes === 'number' ? r.yes : 0 })); renderHistoryChars(); } catch (e) { }
 }
 
 async function saveHistoryCountData() {
   if (!historyState.selectedDate || historyState.syncing) return; historyState.syncing = true;
   const config = getSyncConfig(); if (!isSyncConfigured(config)) { historyState.syncing = false; return; }
-  try { const fn = '' + historyState.currentYear + String(historyState.currentMonth).padStart(2, '0'); await pushCountDataRecords(config, fn, historyState.selectedDate, historyState.charList, historyState.selectedFileSha); } catch (e) { showToast('保存失败'); }
+  try { const fn = '' + historyState.currentYear + String(historyState.currentMonth).padStart(2, '0'); await pushHanziRecordsUpdate(config, fn, historyState.selectedDate, historyState.charList, historyState.selectedFileSha); } catch (e) { showToast('保存失败'); }
   historyState.syncing = false;
 }
 
@@ -793,7 +806,7 @@ async function loadLatest() {
   const config = getSyncConfig();
   if (!isSyncConfigured(config)) { charArea.innerHTML = '<div class="empty-tip"><span class="empty-text">请先配置 Gitee 同步</span></div>'; latestState.loading = false; return; }
   try {
-    const result = await fetchLatestCountData(config);
+    const result = await fetchLatestHanziData(config);
     latestState.dateLabel = result.dateLabel; latestState.folderName = result.folderName; latestState.fileName = result.fileName; latestState.fileSha = result.sha || '';
     latestState.charList = (result.records || []).map(r => ({ ...r, yes: typeof r.yes === 'number' ? r.yes : 0 }));
     header.innerHTML = latestState.dateLabel ? '<span class="date-header-text">' + latestState.dateLabel + '</span>' : '';
@@ -834,7 +847,7 @@ async function latestMarkYes(idx, value) {
 async function saveLatestCountData() {
   if (!latestState.folderName || !latestState.fileName || latestState.syncing) return; latestState.syncing = true;
   const config = getSyncConfig(); if (!isSyncConfigured(config)) { latestState.syncing = false; return; }
-  try { await pushCountDataRecords(config, latestState.folderName, latestState.fileName, latestState.charList, latestState.fileSha); } catch (e) { showToast('保存失败'); }
+  try { await pushHanziRecordsUpdate(config, latestState.folderName, latestState.fileName, latestState.charList, latestState.fileSha); } catch (e) { showToast('保存失败'); }
   latestState.syncing = false;
 }
 
@@ -921,6 +934,224 @@ function renderErrorChars() {
       + '</div>'
       + '</div>';
   }).join('') + '</div>';
+}
+
+// ========== 单元课文管理页 ==========
+let umState = { currentGrade: 0, filterUnitIndex: 0 };
+
+function navigateToUnitManage() {
+  umState = { currentGrade: 0, filterUnitIndex: 0 };
+  document.getElementById('navTitle').textContent = '单元课文管理';
+  document.getElementById('tabbar').style.display = 'none';
+  document.getElementById('navBack').style.display = '';
+  document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
+  document.getElementById('page-unitmanage').classList.add('active');
+  currentPage = 'unitmanage';
+  renderUnitManage();
+}
+
+function renderUnitManage() {
+  const g = umState.currentGrade;
+
+  // 年级 tab
+  const tabsEl = document.getElementById('umGradeTabs');
+  tabsEl.innerHTML = GRADES.map((gd, i) =>
+    `<div class="grade-tab ${g === i ? 'active' : ''}" data-grade="${i}"><span class="grade-tab-text">${gd}</span></div>`
+  ).join('');
+  tabsEl.querySelectorAll('.grade-tab').forEach(t => {
+    t.onclick = () => {
+      umState.currentGrade = parseInt(t.dataset.grade);
+      umState.filterUnitIndex = 0;
+      renderUnitManage();
+    };
+  });
+
+  const units = getGradeUnits(g);
+
+  // ---- 单元列表 ----
+  const unitListEl = document.getElementById('umUnitList');
+  if (units.length === 0) {
+    unitListEl.innerHTML = '<div class="um-empty">暂无单元，点击上方按钮添加</div>';
+  } else {
+    unitListEl.innerHTML = units.map((u, i) => {
+      const lessonCount = (u.lessons || []).length;
+      return `<div class="um-item" data-id="${u.id}" data-idx="${i}">
+        <div class="um-item-info">
+          <span class="um-item-index">${i + 1}</span>
+          <span class="um-item-name">${u.name}</span>
+          <span class="um-item-lesson-count">${lessonCount} 课</span>
+        </div>
+        <div class="um-item-actions">
+          <button class="um-item-btn um-item-btn-edit" data-action="renameUnit">重命名</button>
+          <button class="um-item-btn um-item-btn-del" data-action="delUnit">删除</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    unitListEl.querySelectorAll('.um-item').forEach(item => {
+      const id = item.dataset.id;
+      item.querySelectorAll('[data-action]').forEach(btn => {
+        btn.onclick = () => {
+          const action = btn.dataset.action;
+          if (action === 'renameUnit') renameUnit(id);
+          else if (action === 'delUnit') deleteUnit(id);
+        };
+      });
+    });
+  }
+
+  // ---- 课文列表 ----
+  const filterEl = document.getElementById('umLessonUnitFilter');
+  const fuid = umState.filterUnitIndex > 0 ? units[umState.filterUnitIndex - 1].id : null;
+  filterEl.innerHTML = '<option value="0">选择单元</option>' +
+    units.map((u, i) => `<option value="${i + 1}" ${umState.filterUnitIndex === i + 1 ? 'selected' : ''}>${u.name}</option>`).join('');
+  filterEl.onchange = (e) => {
+    umState.filterUnitIndex = parseInt(e.target.value);
+    renderUnitManage();
+  };
+
+  const selUnit = fuid ? units.find(u => String(u.id) === String(fuid)) : null;
+  const lessons = selUnit ? (selUnit.lessons || []) : [];
+  const lessonListEl = document.getElementById('umLessonList');
+  if (!fuid) {
+    lessonListEl.innerHTML = '<div class="um-empty">请先在上方选择一个单元</div>';
+  } else if (lessons.length === 0) {
+    lessonListEl.innerHTML = '<div class="um-empty">该单元暂无课文，点击上方按钮添加</div>';
+  } else {
+    lessonListEl.innerHTML = lessons.map((l, i) =>
+      `<div class="um-item" data-id="${l.id}" data-unit-id="${selUnit.id}">
+        <div class="um-item-info">
+          <span class="um-item-index">${i + 1}</span>
+          <span class="um-item-name">${l.name}</span>
+        </div>
+        <div class="um-item-actions">
+          <button class="um-item-btn um-item-btn-edit" data-action="renameLesson">重命名</button>
+          <button class="um-item-btn um-item-btn-del" data-action="delLesson">删除</button>
+        </div>
+      </div>`
+    ).join('');
+
+    lessonListEl.querySelectorAll('.um-item').forEach(item => {
+      const id = item.dataset.id;
+      const unitId = item.dataset.unitId;
+      item.querySelectorAll('[data-action]').forEach(btn => {
+        btn.onclick = () => {
+          const action = btn.dataset.action;
+          if (action === 'renameLesson') renameLesson(unitId, id);
+          else if (action === 'delLesson') deleteLesson(unitId, id);
+        };
+      });
+    });
+  }
+
+  // 绑定添加按钮
+  document.getElementById('umAddUnitBtn').onclick = () => addUnit();
+  document.getElementById('umAddLessonBtn').onclick = () => addLesson();
+}
+
+// ---- 单元 CRUD ----
+
+function addUnit() {
+  showModal(`<div class="modal-header"><span class="modal-title">添加单元</span><span class="modal-close" onclick="closeModal()">×</span></div>
+    <div class="form-group"><label class="form-label">单元名称</label><input class="form-input" id="umInputName" placeholder="如：第一单元" autofocus /></div>
+    <button class="btn btn-primary btn-block" id="umConfirmBtn">确定添加</button>`);
+  document.getElementById('umConfirmBtn').onclick = () => {
+    const name = document.getElementById('umInputName').value.trim();
+    if (!name) { showToast('请输入单元名称'); return; }
+    const key = gradeKey(umState.currentGrade);
+    const id = String(Date.now());
+    appState.cateData[key].push({ id, name, type: 'unit', grade: umState.currentGrade, lessons: [] });
+    saveCateData();
+    closeModal();
+    renderUnitManage();
+    showToast('添加成功');
+  };
+}
+
+function renameUnit(id) {
+  const key = gradeKey(umState.currentGrade);
+  const unit = (appState.cateData[key] || []).find(u => String(u.id) === String(id));
+  if (!unit) return;
+  showModal(`<div class="modal-header"><span class="modal-title">重命名单元</span><span class="modal-close" onclick="closeModal()">×</span></div>
+    <div class="form-group"><label class="form-label">单元名称</label><input class="form-input" id="umInputName" value="${unit.name}" autofocus /></div>
+    <button class="btn btn-primary btn-block" id="umConfirmBtn">保存</button>`);
+  document.getElementById('umConfirmBtn').onclick = () => {
+    const name = document.getElementById('umInputName').value.trim();
+    if (!name) { showToast('请输入单元名称'); return; }
+    unit.name = name;
+    saveCateData();
+    closeModal();
+    renderUnitManage();
+    showToast('已重命名');
+  };
+}
+
+function deleteUnit(id) {
+  confirmDialog('确认删除', '确定删除该单元吗？该单元下的所有课文也会一并删除，关联的内容不会受影响。', () => {
+    const key = gradeKey(umState.currentGrade);
+    const idx = (appState.cateData[key] || []).findIndex(u => String(u.id) === String(id));
+    if (idx > -1) appState.cateData[key].splice(idx, 1);
+    saveCateData();
+    if (umState.filterUnitIndex > 0) {
+      umState.filterUnitIndex = 0;
+    }
+    renderUnitManage();
+    showToast('已删除');
+  });
+}
+
+// ---- 课文 CRUD ----
+
+function addLesson() {
+  const units = getGradeUnits(umState.currentGrade);
+  const fuid = umState.filterUnitIndex > 0 ? units[umState.filterUnitIndex - 1] : null;
+  if (!fuid) { showToast('请先在上方选择一个单元'); return; }
+  showModal(`<div class="modal-header"><span class="modal-title">添加课文</span><span class="modal-close" onclick="closeModal()">×</span></div>
+    <div class="form-group"><label class="form-label">课文名称</label><input class="form-input" id="umInputName" placeholder="如：第1课 春天来了" autofocus /></div>
+    <button class="btn btn-primary btn-block" id="umConfirmBtn">确定添加</button>`);
+  document.getElementById('umConfirmBtn').onclick = () => {
+    const name = document.getElementById('umInputName').value.trim();
+    if (!name) { showToast('请输入课文名称'); return; }
+    const id = String(Date.now());
+    fuid.lessons.push({ id, name, type: 'lesson', grade: umState.currentGrade });
+    saveCateData();
+    closeModal();
+    renderUnitManage();
+    showToast('添加成功');
+  };
+}
+
+function renameLesson(unitId, lessonId) {
+  const key = gradeKey(umState.currentGrade);
+  const unit = (appState.cateData[key] || []).find(u => String(u.id) === String(unitId));
+  if (!unit) return;
+  const lesson = (unit.lessons || []).find(l => String(l.id) === String(lessonId));
+  if (!lesson) return;
+  showModal(`<div class="modal-header"><span class="modal-title">重命名课文</span><span class="modal-close" onclick="closeModal()">×</span></div>
+    <div class="form-group"><label class="form-label">课文名称</label><input class="form-input" id="umInputName" value="${lesson.name}" autofocus /></div>
+    <button class="btn btn-primary btn-block" id="umConfirmBtn">保存</button>`);
+  document.getElementById('umConfirmBtn').onclick = () => {
+    const name = document.getElementById('umInputName').value.trim();
+    if (!name) { showToast('请输入课文名称'); return; }
+    lesson.name = name;
+    saveCateData();
+    closeModal();
+    renderUnitManage();
+    showToast('已重命名');
+  };
+}
+
+function deleteLesson(unitId, lessonId) {
+  confirmDialog('确认删除', '确定删除该课文吗？关联的内容不会受影响。', () => {
+    const key = gradeKey(umState.currentGrade);
+    const unit = (appState.cateData[key] || []).find(u => String(u.id) === String(unitId));
+    if (!unit) return;
+    const idx = (unit.lessons || []).findIndex(l => String(l.id) === String(lessonId));
+    if (idx > -1) unit.lessons.splice(idx, 1);
+    saveCateData();
+    renderUnitManage();
+    showToast('已删除');
+  });
 }
 
 // ========== 初始化 ==========
@@ -1060,5 +1291,9 @@ async function markUserSynced(user) {
 }
 
 window.addEventListener('DOMContentLoaded', init);
+
+
+
+
 
 
