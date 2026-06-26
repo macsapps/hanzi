@@ -32,11 +32,11 @@
                         <div class="form-card">
                             <div class="form-item">
                                 <span class="form-item-label">用户名</span>
-                                <input class="form-item-input" id="usernameInput" type="text" placeholder="请输入用户名" autocomplete="off" />
+                                <input class="form-item-input" id="usernameInput" type="text" placeholder="请输入用户名（字母数字，至少6位）" autocomplete="off" pattern="[a-zA-Z0-9]{6,}" />
                             </div>
                             <div class="form-item">
                                 <span class="form-item-label">密码</span>
-                                <input class="form-item-input" id="passwordInput" type="password" placeholder="请输入密码" autocomplete="off" />
+                                <input class="form-item-input" id="passwordInput" type="password" placeholder="请输入密码（字母数字，至少6位）" autocomplete="off" pattern="[a-zA-Z0-9]{6,}" />
                                 <span class="form-item-eye" id="eyeBtn">🔒</span>
                             </div>
                         </div>
@@ -53,7 +53,7 @@
                 <div class="statistics-page">
                     <div class="stats-hero">
                         <div class="stats-hero-icon">📖</div>
-                        <div class="stats-hero-title">汉字听写助手</div>
+                        <div class="stats-hero-title">小学语文助手</div>
                         <div class="stats-hero-sub">每天进步一点点</div>
                     </div>
                     <div class="stats-btn" id="goLatestBtn">
@@ -275,6 +275,8 @@
                 <div class="char-list-area" id="cateListArea"></div>
                 <button class="fab fab-manage" id="cateManageBtn">⚙</button>
                 <button class="fab" id="cateAddBtn">+</button>
+                <button class="fab fab-export" id="cateExportBtn">⬇ 导出</button>
+                <button class="fab fab-moxie" id="cateMoxieBtn">✍ 汉字默写</button>
             </section>
 
         </main>

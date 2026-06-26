@@ -280,6 +280,9 @@ function getCategoryPageList() {
 
 function refreshCategoryPage() {
   const cat = charState.currentCategory, g = charState.currentGrade;
+  // 汉字默写按钮仅「汉字」分类显示
+  const moxieBtn = document.getElementById('cateMoxieBtn');
+  if (moxieBtn) moxieBtn.style.display = (cat === 'hanzi') ? '' : 'none';
   // 年级 tab
   const tabsEl = document.getElementById('cateGradeTabs');
   tabsEl.innerHTML = GRADES.map((gd, i) => `<div class="grade-tab ${g === i ? 'active' : ''}" data-grade="${i}"><span class="grade-tab-text">${gd}</span></div>`).join('');
@@ -348,6 +351,242 @@ function initCategoryPage() {
   document.getElementById('cateLessonFilter').onchange = (e) => { charState.filterLessonIndex = parseInt(e.target.value); refreshCategoryPage(); };
   document.getElementById('cateAddBtn').onclick = () => openCategoryAddModal();
   document.getElementById('cateManageBtn').onclick = () => openCategoryManageModal();
+  document.getElementById('cateExportBtn').onclick = () => exportCategoryPageA4();
+  document.getElementById('cateMoxieBtn').onclick = () => exportCategoryMoxieA4();
+}
+
+// ========== A4 导出公共部分 ==========
+function getExportScopeInfo() {
+  const cat = charState.currentCategory, g = charState.currentGrade;
+  const gradeName = GRADES[g] || '';
+  const catName = CATEGORY_LABELS[cat] || '知识库';
+  const gu = getGradeUnits(g);
+  const fuid = charState.filterUnitIndex > 0 ? gu[charState.filterUnitIndex - 1].id : null;
+  const unitName = fuid ? (gu.find(u => String(u.id) === String(fuid)) || {}).name : '全部单元';
+  let lessonName = '全部课文';
+  if (charState.filterLessonIndex > 0) {
+    const gl = fuid === null ? gu.flatMap(u => u.lessons || []) : (gu.find(u => String(u.id) === String(fuid)) || { lessons: [] }).lessons || [];
+    if (gl[charState.filterLessonIndex - 1]) lessonName = gl[charState.filterLessonIndex - 1].name;
+  }
+  return { cat, g, gradeName, catName, unitName, lessonName };
+}
+
+// 生成 A4 HTML 并打开打印窗口（系统打印 → 另存为 PDF）
+function openA4Print(html, fileBaseName) {
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const w = window.open(url, '_blank');
+  // 兜底：被弹窗拦截时直接下载该 html
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+    if (!w) {
+      const a = document.createElement('a');
+      a.href = url; a.download = `${fileBaseName}.html`;
+      a.click();
+    }
+  }, 2000);
+  showToast('已生成 A4 导出页，请使用系统打印另存为 PDF');
+}
+
+const A4_DOC_HEAD = (title) => `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>${title}</title>
+<style>
+  @page { size: A4; margin: 12mm; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; color: #2D2D2D; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { background: #fff; }
+  .header { text-align: center; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid #FF6B35; }
+  .header h1 { font-size: 20px; letter-spacing: 2px; }
+  .header .meta { font-size: 12px; color: #8E8E93; margin-top: 6px; }
+  .footer { text-align: center; font-size: 11px; color: #8E8E93; margin-top: 14px; }
+  @media print { body { background: #fff; } }
+</style>
+</head>
+<body>`;
+
+const A4_DOC_TAIL = `
+  <script>
+    window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 300); });
+  </script>
+</body>
+</html>`;
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// ========== 导出当前选中内容为 A4 纸 ==========
+function exportCategoryPageA4() {
+  const list = getCategoryPageList();
+  if (!list || list.length === 0) { showToast('当前没有可导出的内容'); return; }
+  const { catName, gradeName, unitName, lessonName } = getExportScopeInfo();
+
+  const cells = list.map(item => {
+    const pinyin = item.pinyin ? `<div class="pinyin">${escapeHtml(item.pinyin)}</div>` : '';
+    const content = item.content ? `<div class="hanzi">${escapeHtml(item.content)}</div>` : '';
+    const ciyu = item.ciyu ? `<div class="ciyu">${escapeHtml(item.ciyu)}${item.ciyupy ? ' <span class="ciyupy">' + escapeHtml(item.ciyupy) + '</span>' : ''}</div>` : '';
+    return `<div class="cell">${pinyin}${content}${ciyu}</div>`;
+  }).join('');
+
+  const html = A4_DOC_HEAD(`${catName}-${gradeName}-${unitName}-${lessonName}`) + `
+  <style>
+    .grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
+    .cell { border: 1px solid #E0E0E0; border-radius: 6px; min-height: 70px; padding: 6px 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; page-break-inside: avoid; break-inside: avoid; background: #fff; }
+    .pinyin { font-size: 10px; color: #142351; margin-bottom: 2px; }
+    .hanzi { font-size: 26px; font-weight: 600; line-height: 1.1; font-family: 'STKaiti', 'KaiTi', '楷体', serif; }
+    .ciyu { font-size: 10px; color: #5B9BD5; margin-top: 3px; font-weight: 500; }
+    .ciyupy { font-style: italic; color: #142351; font-weight: 400; }
+  </style>
+  <div class="header">
+    <h1>${catName} · ${gradeName}</h1>
+    <div class="meta">${unitName} ｜ ${lessonName} ｜ 共 ${list.length} 项</div>
+  </div>
+  <div class="grid">${cells}</div>
+  <div class="footer">小学语文助手 · ${list.length} 项 · 打印为 A4</div>` + A4_DOC_TAIL;
+
+  openA4Print(html, `${catName}-${gradeName}-${unitName}`);
+}
+
+// ========== 汉字默写导出（A4）==========
+// 每一项：上方为词组拼音，下方为田字格；田字格中目标字（汉字 content）格子留空，词组其余字照常显示。
+// ========== 汉字默写导出（下载为本地图片 PNG）==========
+// A4 @ 150dpi：1240×1754。布局：每行 4 个词组，每个字“拼音在上、田字格在下”逐字对齐；
+// 田字格中目标字留空，其余字照常显示。
+function exportCategoryMoxieA4() {
+  const list = getCategoryPageList();
+  if (!list || list.length === 0) { showToast('当前没有可导出的内容'); return; }
+  const { gradeName, unitName, lessonName } = getExportScopeInfo();
+
+  const W = 1240, H = 1754;            // A4 @150dpi
+  const MARGIN = 70;                    // 页边距
+  const COLS = 4;                       // 每行 4 个词组
+  const TZG = 78;                       // 田字格边长（px）
+  const GAP_COL = 16;                   // 字与字间距
+  const PY_H = 26;                      // 拼音行高
+  const ITEM_GAP_Y = 34;                // 词组行间距
+  const HAN_FONT = `${TZG - 12}px 'STKaiti','KaiTi','楷体',serif`;
+  const PY_FONT = `20px -apple-system,'PingFang SC','Microsoft YaHei',sans-serif`;
+  const TITLE_FONT = `bold 34px -apple-system,'PingFang SC','Microsoft YaHei',sans-serif`;
+  const META_FONT = `20px -apple-system,'PingFang SC','Microsoft YaHei',sans-serif`;
+  const FOOTER_FONT = `18px -apple-system,'PingFang SC','Microsoft YaHei',sans-serif`;
+
+  // 预处理：词组 + 拼音 + 目标字
+  const items = list.map(item => {
+    const word = (item.ciyu && item.ciyu.trim()) ? item.ciyu.trim() : (item.content || '');
+    const wordPy = (item.ciyupy && item.ciyupy.trim()) ? item.ciyupy.trim() : (item.pinyin || '');
+    const target = (item.ciyu && item.ciyu.trim()) ? (item.content || '') : '';
+    const chars = [...word];
+    const pys = wordPy ? wordPy.split(/\s+/).filter(s => s) : [];
+    const perChar = pys.length === chars.length;
+    return chars.map((ch, i) => ({
+      ch,
+      py: perChar ? (pys[i] || '') : '',
+      blank: target.includes(ch)
+    }));
+  }).filter(a => a.length > 0);
+
+  if (items.length === 0) { showToast('当前没有可导出的内容'); return; }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  // 白底
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, W, H);
+
+  // 页眉
+  let y = MARGIN;
+  ctx.fillStyle = '#FF6B35';
+  ctx.fillRect(MARGIN, y, W - MARGIN * 2, 3);
+  y += 24;
+  ctx.fillStyle = '#2D2D2D';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = TITLE_FONT;
+  ctx.fillText(`汉字默写 · ${gradeName}`, W / 2, y + 34);
+  y += 34 + 12;
+  ctx.fillStyle = '#8E8E93';
+  ctx.font = META_FONT;
+  ctx.fillText(`${unitName} ｜ ${lessonName} ｜ 共 ${list.length} 项`, W / 2, y + 20);
+  y += 20 + 30;
+
+  // 内容网格：每行 4 个词组，按列均分宽度
+  const contentW = W - MARGIN * 2;
+  const cellW = contentW / COLS;
+  let rowIdx = 0;
+  const itemH = PY_H + TZG + 4;
+
+  items.forEach((cells, i) => {
+    const col = i % COLS;
+    if (col === 0 && i > 0) { rowIdx++; y += itemH + ITEM_GAP_Y; }
+    // 该词组整体在所属列内居左
+    const totalW = cells.length * TZG + (cells.length - 1) * GAP_COL;
+    let x = MARGIN + col * cellW + (cellW - totalW) / 2;
+    const baseY = y;
+    cells.forEach(c => {
+      // 拼音
+      ctx.fillStyle = '#142351';
+      ctx.font = PY_FONT;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillText(c.py || '', x + TZG / 2, baseY + 20);
+      // 田字格边框 + 十字虚线
+      drawTianZiGe(ctx, x, baseY + PY_H, TZG);
+      // 字（目标字留空）
+      if (!c.blank) {
+        ctx.fillStyle = '#2D2D2D';
+        ctx.font = HAN_FONT;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(c.ch, x + TZG / 2, baseY + PY_H + TZG / 2 + 2);
+      }
+      x += TZG + GAP_COL;
+    });
+  });
+
+  // 页脚
+  ctx.fillStyle = '#8E8E93';
+  ctx.font = FOOTER_FONT;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText(`小学语文助手 · 汉字默写 · ${list.length} 项`, W / 2, H - 40);
+
+  // 下载为 PNG
+  canvas.toBlob(blob => {
+    if (!blob) { showToast('图片生成失败'); return; }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `汉字默写-${gradeName}-${unitName}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+    showToast('已保存默写图片到本地');
+  }, 'image/png');
+}
+
+// 绘制单个田字格：实线边框 + 十字虚线
+function drawTianZiGe(ctx, x, y, size) {
+  ctx.save();
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x + 0.5, y + 0.5, size - 1, size - 1);
+  // 十字虚线
+  ctx.strokeStyle = '#bbb';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([5, 4]);
+  ctx.beginPath();
+  ctx.moveTo(x + size / 2, y);
+  ctx.lineTo(x + size / 2, y + size);
+  ctx.moveTo(x, y + size / 2);
+  ctx.lineTo(x + size, y + size / 2);
+  ctx.stroke();
+  ctx.restore();
 }
 
 function openCategoryAddModal() {
@@ -1179,7 +1418,14 @@ function startApp() {
   initCharacters();
   initDictation();
   initMine();
-  document.getElementById('navBack').onclick = () => { switchTab('statistics'); };
+  document.getElementById('navBack').onclick = () => {
+    // 知识库分类详情页和单元课文管理页返回知识库首页，其他子页返回首页
+    if (currentPage === 'category' || currentPage === 'unitmanage') {
+      switchTab('characters');
+    } else {
+      switchTab('statistics');
+    }
+  };
   document.querySelectorAll('.tab-item').forEach(item => {
     item.onclick = () => switchTab(item.dataset.tab);
   });

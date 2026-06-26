@@ -14,9 +14,9 @@ function speak(text, options = {}) {
     }
     const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.lang = 'zh-CN';
-    utterance.rate = 0.4;
-    utterance.pitch = 0.9;
-    utterance.volume = 1.1;
+    utterance.rate = 0.5;
+    utterance.pitch = 0.1;
+    utterance.volume = 0.8;
     let resolved = false;
     const done = () => { if (resolved) return; resolved = true; resolve(); };
     utterance.onend = done;

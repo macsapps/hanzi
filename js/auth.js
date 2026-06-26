@@ -78,6 +78,10 @@ async function registerUser(name, password) {
   password = password || '';
   if (!name) return { ok: false, error: '请输入用户名' };
   if (!password) return { ok: false, error: '请输入密码' };
+  if (!/^[a-zA-Z0-9]+$/.test(name)) return { ok: false, error: '用户名只能包含字母和数字' };
+  if (!/^[a-zA-Z0-9]+$/.test(password)) return { ok: false, error: '密码只能包含字母和数字' };
+  if (name.length < 6) return { ok: false, error: '用户名不能少于6位' };
+  if (password.length < 6) return { ok: false, error: '密码不能少于6位' };
 
   const config = getSyncConfig();
   if (!isSyncConfigured(config)) return { ok: false, error: '同步未配置，无法注册' };
