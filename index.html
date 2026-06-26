@@ -100,6 +100,7 @@
             <!-- ============ 知识库页 ============ -->
             <section id="page-characters" class="page-section">
                 <div class="grade-tabs" id="charGradeTabs"></div>
+                <div class="semester-bar" id="charSemesterBar"></div>
                 <div class="knowledge-page" id="knowledgePage">
                     <div class="category-grid" id="categoryGrid"></div>
                     <div class="manage-entry" id="unitManageEntry">
@@ -119,6 +120,7 @@
                 <div id="dict-select" class="dict-subpage active">
                     <div class="grade-tabs" id="dictCategoryTabs"></div>
                     <div class="mode-tabs" id="dictModeTabs"></div>
+                    <div class="semester-bar" id="dictSemesterBar"></div>
                     <div class="grade-tabs" id="dictGradeTabs"></div>
                     <div class="filter-bar">
                         <div class="filter-picker">
@@ -195,6 +197,9 @@
                             <button class="btn btn-primary" id="pushBtn">推送数据</button>
                             <button class="btn btn-outline" id="pullBtn">更新数据</button>
                         </div>
+                        <div style="margin-top:12px;">
+                            <button class="btn btn-warning btn-block" id="initDataBtn">初始化数据文件</button>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -234,6 +239,7 @@
             <!-- ============ 单元课文管理页（子页） ============ -->
             <section id="page-unitmanage" class="page-section">
                 <div class="grade-tabs" id="umGradeTabs"></div>
+                <div class="semester-bar" id="umSemesterBar"></div>
                 <div class="um-content">
                     <div class="um-section" id="umUnitSection">
                         <div class="um-section-header">
@@ -260,6 +266,7 @@
             <!-- ============ 知识库分类详情页（子页） ============ -->
             <section id="page-category" class="page-section">
                 <div class="grade-tabs" id="cateGradeTabs"></div>
+                <div class="semester-bar" id="cateSemesterBar"></div>
                 <div class="filter-bar">
                     <div class="filter-picker">
                         <select id="cateUnitFilter">
@@ -276,7 +283,10 @@
                 <button class="fab fab-manage" id="cateManageBtn">⚙</button>
                 <button class="fab" id="cateAddBtn">+</button>
                 <button class="fab fab-export" id="cateExportBtn">⬇ 导出</button>
-                <button class="fab fab-moxie" id="cateMoxieBtn">✍ 汉字默写</button>
+                <button class="fab fab-hanzi-moxie" id="cateMoxieHanziBtn">✍ 汉字默写</button>
+                <button class="fab fab-hanzi-full" id="cateFullHanziBtn">🔴 汉字全写</button>
+                <button class="fab fab-cy-moxie" id="cateMoxieCyBtn">✍ 词语默写</button>
+                <button class="fab fab-cy-full" id="cateFullCyBtn">🔴 词语全写</button>
             </section>
 
         </main>

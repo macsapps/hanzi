@@ -1,4 +1,30 @@
 const GRADES = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级'];
+const SEMESTERS = ['上册', '下册'];
+// 完整年级名（含上下册）：g 为 0-11 的内部索引
+function gradeFullName(g) { return GRADES[Math.floor(Number(g) / 2)] + SEMESTERS[Number(g) % 2]; }
+// 切换年级（保留当前学期），返回新的 0-11 索引
+function gradeWithSemester(gradeIndex, g) { return Number(gradeIndex) * 2 + (Number(g) % 2); }
+// 渲染年级 tab（6 个）+ 学期 tab（2 个），返回绑定好的对象
+// gradeBarId: 年级容器；semesterBarId: 学期容器；currentGrade: 0-11；onChange: 切换后回调
+function renderGradeAndSemester(gradeBarId, semesterBarId, currentGrade, onChange) {
+  const gradeIdx = Math.floor(currentGrade / 2);
+  const semIdx = currentGrade % 2;
+  const gradeBar = document.getElementById(gradeBarId);
+  gradeBar.innerHTML = GRADES.map((g, i) => `<div class="grade-tab ${gradeIdx === i ? 'active' : ''}" data-grade="${i}"><span class="grade-tab-text">${g}</span></div>`).join('');
+  gradeBar.querySelectorAll('.grade-tab').forEach(t => {
+    t.onclick = () => { onChange(gradeWithSemester(parseInt(t.dataset.grade), currentGrade)); };
+  });
+  const semBar = document.getElementById(semesterBarId);
+  if (semBar) {
+    semBar.innerHTML = SEMESTERS.map((s, i) => `<div class="semester-tab ${semIdx === i ? 'active' : ''}" data-sem="${i}"><span>${s}</span></div>`).join('');
+    semBar.querySelectorAll('.semester-tab').forEach(t => {
+      t.onclick = () => {
+        const newG = Math.floor(currentGrade / 2) * 2 + parseInt(t.dataset.sem);
+        onChange(newG);
+      };
+    });
+  }
+}
 const CATEGORIES = [
   { label: '汉字', value: 'hanzi' },
   { label: '词语', value: 'ciyu' },
@@ -9,30 +35,83 @@ const CATEGORIES = [
 const CATEGORY_LABELS = { hanzi: '汉字', ciyu: '词语', chengyu: '成语', gushi: '古诗', jilei: '日积月累' };
 
 // 内容数据按分类 × 年级二维存储：categoryData[category][gradeIndex] = 记录数组
+const CATE_KEYS_12 = ['grade1_0','grade1','grade2_0','grade2','grade3_0','grade3','grade4_0','grade4','grade5_0','grade5','grade6_0','grade6'];
+function emptyCateData12() { const o = {}; CATE_KEYS_12.forEach(k => { o[k] = []; }); return o; }
 function emptyCategoryGradeData() {
   const o = {};
-  CATEGORIES.forEach(c => { o[c.value] = [[], [], [], [], [], []]; });
+  CATEGORIES.forEach(c => { o[c.value] = [[],[],[],[],[],[],[],[],[],[],[],[]]; });
   return o;
 }
 let appState = {
   categoryData: emptyCategoryGradeData(),
-  cateData: { grade1: [], grade2: [], grade3: [], grade4: [], grade5: [], grade6: [] },
+  cateData: emptyCateData12(),
   cateLoaded: false,        // 单元课文树 cate.json 是否已加载（进听写页时拉一次）
-  categoryLoaded: {}        // 各分类内容数据是否已加载：{ hanzi: true, ciyu: true, ... }，点分类 tab 时按需拉
+  categoryLoaded: {},       // 各分类内容数据是否已加载：{ hanzi: true, ciyu: true, ... }，点分类 tab 时按需拉
+  statsData: {},            // 用户统计层：statsData[cat][g] = { id: {times,yes,wrong} }
+  statsLoaded: {}           // 各分类统计是否已加载：{ hanzi: true, ... }
 };
 
-function storageKey(cat, g) { return `cat_${cat}_${g}`; }
+// localStorage key：与 gitee 文件路径规则一致，偶数=上册，奇数=下册
+function storageKey(cat, g) {
+  const n = Number(g);
+  const base = Math.floor(n / 2) + 1;
+  const suffix = n % 2 === 0 ? '_0' : '';
+  return `cat_${cat}_${base}${suffix}`;
+}
+// 统计层 localStorage key（独立于内容数据）
+function statsStorageKey(cat, g) {
+  const n = Number(g);
+  const base = Math.floor(n / 2) + 1;
+  const suffix = n % 2 === 0 ? '_0' : '';
+  return `stats_${cat}_${base}${suffix}`;
+}
 const CATE_STORAGE_KEY = 'characterCate';
-function gradeKey(g) { return 'grade' + (Number(g) + 1); }
+function gradeKey(g) {
+  const n = Number(g);
+  const base = Math.floor(n / 2) + 1;
+  return n % 2 === 0 ? 'grade' + base + '_0' : 'grade' + base;
+}
 
 function getCategoryGradeData(cat, g) {
-  if (!appState.categoryData[cat]) appState.categoryData[cat] = [[], [], [], [], [], []];
+  if (!appState.categoryData[cat]) appState.categoryData[cat] = [[],[],[],[],[],[],[],[],[],[],[],[]];
   const arr = appState.categoryData[cat][g];
   return Array.isArray(arr) ? arr : [];
 }
 function setCategoryGradeData(cat, g, arr) {
-  if (!appState.categoryData[cat]) appState.categoryData[cat] = [[], [], [], [], [], []];
+  if (!appState.categoryData[cat]) appState.categoryData[cat] = [[],[],[],[],[],[],[],[],[],[],[],[]];
   appState.categoryData[cat][g] = Array.isArray(arr) ? arr : [];
+}
+
+// ===== 用户统计层（个人空间，与共享内容解耦）=====
+// 内存结构：statsData[cat][g] = { "字id": {times,yes,wrong} }
+function getStatsMap(cat, g) {
+  if (!appState.statsData[cat]) appState.statsData[cat] = [{},{},{},{},{},{},{},{},{},{},{},{}];
+  const m = appState.statsData[cat][g];
+  return (m && typeof m === 'object') ? m : {};
+}
+function setStatsMap(cat, g, m) {
+  if (!appState.statsData[cat]) appState.statsData[cat] = [{},{},{},{},{},{},{},{},{},{},{},{}];
+  appState.statsData[cat][g] = (m && typeof m === 'object') ? m : {};
+}
+// 读取某条目的统计（合并到内容对象用）
+function getStat(cat, g, id) {
+  const m = getStatsMap(cat, g);
+  return m[String(id)] || { times: 0, yes: 0, wrong: 0 };
+}
+// 写入/更新某条目统计，并持久化+同步
+function updateStat(cat, g, id, patch) {
+  const m = getStatsMap(cat, g);
+  const cur = m[String(id)] || { times: 0, yes: 0, wrong: 0 };
+  m[String(id)] = { times: cur.times || 0, yes: cur.yes || 0, wrong: cur.wrong || 0, ...patch };
+  saveStats(cat, g);
+}
+function saveStats(cat, g) {
+  try { localStorage.setItem(statsStorageKey(cat, g), JSON.stringify(getStatsMap(cat, g))); } catch (e) { }
+  autoSyncStatsToGitee(cat, g);
+}
+async function autoSyncStatsToGitee(cat, g) {
+  const c = getSyncConfig(); if (!isSyncConfigured(c)) return;
+  try { await pushStatsToGitee(JSON.stringify(getStatsMap(cat, g)), c, cat, g); updateSyncTime(); } catch (e) { }
 }
 
 // ===== 内置默认同步配置（无需在“我的”页面手动输入）=====
@@ -55,19 +134,18 @@ function ensureDefaultSyncConfig() {
 }
 
 function normalizeCateData(data) {
-  const emptyTree = { grade1: [], grade2: [], grade3: [], grade4: [], grade5: [], grade6: [] };
-  if (!data) return { ...emptyTree };
-  const hasTreeKey = Object.keys(emptyTree).some(k => Array.isArray(data[k]));
+  if (!data) return emptyCateData12();
+  const hasTreeKey = CATE_KEYS_12.some(k => Array.isArray(data[k]));
   const ensureUnit = (u, grade) => ({
     id: u.id, name: u.name, type: u.type || 'unit', grade: Number(grade),
     lessons: Array.isArray(u.lessons) ? u.lessons.map(l => ({
       id: l.id, name: l.name, type: l.type || 'lesson', grade: Number(grade)
     })) : []
   });
-  const tree = { ...emptyTree };
+  const tree = emptyCateData12();
   if (hasTreeKey) {
-    Object.keys(emptyTree).forEach(k => {
-      const grade = Number(k.replace('grade', '')) - 1;
+    CATE_KEYS_12.forEach(k => {
+      const grade = Number(k.replace('grade', '').replace('_0', '')) - 1;
       const arr = Array.isArray(data[k]) ? data[k] : [];
       tree[k] = arr.map(u => ensureUnit(u, grade));
     });
@@ -77,10 +155,15 @@ function normalizeCateData(data) {
 
 function loadLocalData() {
   CATEGORIES.forEach(cat => {
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 12; i++) {
       try {
         const data = localStorage.getItem(storageKey(cat.value, i));
         if (data) { const p = JSON.parse(data); setCategoryGradeData(cat.value, i, Array.isArray(p) ? p : []); }
+      } catch (e) { }
+      // 加载本地统计缓存
+      try {
+        const sd = localStorage.getItem(statsStorageKey(cat.value, i));
+        if (sd) { const p = JSON.parse(sd); setStatsMap(cat.value, i, (p && typeof p === 'object') ? p : {}); }
       } catch (e) { }
     }
   });
@@ -166,16 +249,23 @@ async function loadCateFromGiteeOnly() {
   appState.cateLoaded = true;
 }
 
-// 拉取指定分类的 6 个年级文件（点分类 tab 时按需调用）
+// 拉取指定分类的 12 个年级文件（点分类 tab 时按需调用）
 async function loadCategoryData(cat) {
-  const c = getSyncConfig(); if (!isSyncConfigured(c)) { appState.categoryLoaded[cat] = true; return; }
-  for (let i = 0; i < 6; i++) {
+  const c = getSyncConfig(); if (!isSyncConfigured(c)) { appState.categoryLoaded[cat] = true; appState.statsLoaded[cat] = true; return; }
+  for (let i = 0; i < 12; i++) {
     try {
       const rj = await pullCategoryFromGitee(c, cat, i); const rd = JSON.parse(rj);
       if (Array.isArray(rd)) { setCategoryGradeData(cat, i, rd); localStorage.setItem(storageKey(cat, i), JSON.stringify(rd)); }
     } catch (e) { }
+    // 同步拉取该年级的用户统计层（个人空间）
+    try {
+      const sj = await pullStatsFromGitee(c, cat, i); const sd = JSON.parse(sj || '{}');
+      setStatsMap(cat, i, (sd && typeof sd === 'object') ? sd : {});
+      localStorage.setItem(statsStorageKey(cat, i), JSON.stringify(getStatsMap(cat, i)));
+    } catch (e) { }
   }
   appState.categoryLoaded[cat] = true;
+  appState.statsLoaded[cat] = true;
 }
 
 function navigateTo(page) {
@@ -233,10 +323,8 @@ const CATEGORY_INFO = [
 ];
 
 function refreshCharacters() {
-  const tabsEl = document.getElementById('charGradeTabs');
-  tabsEl.innerHTML = GRADES.map((g, i) => `<div class="grade-tab ${charState.currentGrade === i ? 'active' : ''}" data-grade="${i}"><span class="grade-tab-text">${g}</span></div>`).join('');
-  tabsEl.querySelectorAll('.grade-tab').forEach(t => {
-    t.onclick = () => { charState.currentGrade = parseInt(t.dataset.grade); refreshCharacters(); };
+  renderGradeAndSemester('charGradeTabs', 'charSemesterBar', charState.currentGrade, (newG) => {
+    charState.currentGrade = newG; refreshCharacters();
   });
 
   const gridEl = document.getElementById('categoryGrid');
@@ -280,14 +368,16 @@ function getCategoryPageList() {
 
 function refreshCategoryPage() {
   const cat = charState.currentCategory, g = charState.currentGrade;
-  // 汉字默写按钮仅「汉字」分类显示
-  const moxieBtn = document.getElementById('cateMoxieBtn');
-  if (moxieBtn) moxieBtn.style.display = (cat === 'hanzi') ? '' : 'none';
-  // 年级 tab
-  const tabsEl = document.getElementById('cateGradeTabs');
-  tabsEl.innerHTML = GRADES.map((gd, i) => `<div class="grade-tab ${g === i ? 'active' : ''}" data-grade="${i}"><span class="grade-tab-text">${gd}</span></div>`).join('');
-  tabsEl.querySelectorAll('.grade-tab').forEach(t => {
-    t.onclick = () => { charState.currentGrade = parseInt(t.dataset.grade); charState.filterUnitIndex = 0; charState.filterLessonIndex = 0; refreshCategoryPage(); };
+  // 汉字类按钮仅汉字分类，词语类按钮仅非汉字分类
+  const hanziVisible = (cat === 'hanzi') ? '' : 'none';
+  const cyVisible = (cat !== 'hanzi') ? '' : 'none';
+  setDisplay('cateMoxieHanziBtn', hanziVisible);
+  setDisplay('cateFullHanziBtn', hanziVisible);
+  setDisplay('cateMoxieCyBtn', cyVisible);
+  setDisplay('cateFullCyBtn', cyVisible);
+  // 年级 + 学期 tab
+  renderGradeAndSemester('cateGradeTabs', 'cateSemesterBar', g, (newG) => {
+    charState.currentGrade = newG; charState.filterUnitIndex = 0; charState.filterLessonIndex = 0; refreshCategoryPage();
   });
 
   // 筛选栏
@@ -309,7 +399,8 @@ function refreshCategoryPage() {
       cardHtml += `<span class="char-hanzi">${item.content || ''}</span>`;
       if (item.ciyu) cardHtml += `<span class="char-ciyu">${item.ciyu}</span>`;
       if (item.ciyupy) cardHtml += `<span class="char-ciyupy">${item.ciyupy}</span>`;
-      cardHtml += `<span class="char-times">${item.times ? item.times : ''}</span>`;
+      const stat = getStat(cat, g, item.id);
+      cardHtml += `<span class="char-times">${stat.times ? stat.times : ''}</span>`;
       cardHtml += `<span class="char-play"><svg t="1782292289492" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="3691" width="25" height="25"><path d="M529.1 901.6c-2.7 0-12.1-4.1-17-9l-0.3-0.3-230.4-190.1H96.1c-8.9 0-18.3-4.6-22.7-9-4.4-4.4-9-13.8-9-22.7v-319c0-7 2.7-12.9 4.4-14.6H71l2.4-2.4c4.4-4.4 13.8-9 22.7-9h185.3l230.4-195.8 0.2-0.2c5.8-5.8 12.9-7 17.8-7 4.4 0 8.9 1 12.6 2.9l0.5 0.3 0.5 0.2c12.5 4.2 17.2 11.3 17.2 26.4v717.8c0 15.1-4.7 22.3-17.2 26.4l-1.8 0.6-1.4 1.4c-3 3-5.6 3.1-11.1 3.1z m279.1-79.7c-9.9 0-23.1-5.1-26.9-12.6-9-18-5.8-36.4 7.9-46.1 4.8-2 11.6-7.2 20.3-15.6 8.9-8.7 22.4-23.7 36.2-45.7 23-36.8 50.4-99.7 50.4-190.9s-29-154.2-53.3-191.1c-14.5-22-28.8-37-38.2-45.6-6.6-6.1-14.9-13-21-15.5-12.6-9.1-17-31.4-8.9-44.5 9.4-9.1 20.6-14.3 30.8-14.3 5.4 0 10.4 1.4 14.8 4.2 0.7 0.6 1.6 1.3 3 2.4 29.4 23.1 54.9 51.4 75.8 84.1 40.1 62.9 60.5 137 60.5 220.3 0 83.7-19.7 158.1-58.4 221.1-20.1 32.7-44.5 60.9-72.6 83.6-1.7 1.4-2.6 2.1-3.3 2.8-3.4 3.4-13.3 3.4-17.1 3.4zM688.6 696.6c-8.3 0-22.6-9.7-26.9-18.3l-0.2-0.5-0.3-0.4c-8.2-12.4 0.8-30.4 14.5-39.7 6.4-3.4 60.9-35.5 60.9-132.3 0-46.5-18-78.4-33.2-97-16.5-20.2-33.1-29.4-33.7-29.8l-0.6-0.3-0.7-0.2c-5.8-1.9-11.4-8.5-14.3-16.8-2.9-8.3-2.3-16.6 1.4-22.2l0.6-0.9 0.3-1c2.9-8.6 15.6-16.1 27.3-16.1 4.5 0 8.6 1.1 11.7 3.2l2.1 1.4h1.5c4.5 1.7 29.1 14 53.5 41.9 21.7 24.9 47.6 68.1 47.6 132.2 0 72.9-24.5 120.2-45 147.1-22.6 29.5-45.6 42.2-50.4 44.1h-2.4l-2.4 2.4c-3.2 3-5.7 3.2-11.3 3.2z" fill="#088019" p-id="3692"></path></svg></span>`;
       return `<div class="char-card" data-id="${item.id}">${cardHtml}</div>`;
     }).join('') + '</div>';
@@ -351,14 +442,25 @@ function initCategoryPage() {
   document.getElementById('cateLessonFilter').onchange = (e) => { charState.filterLessonIndex = parseInt(e.target.value); refreshCategoryPage(); };
   document.getElementById('cateAddBtn').onclick = () => openCategoryAddModal();
   document.getElementById('cateManageBtn').onclick = () => openCategoryManageModal();
-  document.getElementById('cateExportBtn').onclick = () => exportCategoryPageA4();
-  document.getElementById('cateMoxieBtn').onclick = () => exportCategoryMoxieA4();
+  // 导出：汉字页标红布局，词语页分散对齐布局
+  document.getElementById('cateExportBtn').onclick = () => exportCategoryMoxieA4(
+    charState.currentCategory === 'hanzi' ? { highlightTarget: true } : { wrapByWord: true }
+  );
+  // 汉字类：汉字默写（目标字留空）/ 汉字全写（全空）
+  document.getElementById('cateMoxieHanziBtn').onclick = () => exportCategoryMoxieA4({ hideTarget: true });
+  document.getElementById('cateFullHanziBtn').onclick = () => exportCategoryMoxieA4({ hideAll: true });
+  // 词语类：词语默写（随机留空）/ 词语全写（全空，分散对齐）
+  document.getElementById('cateMoxieCyBtn').onclick = () => exportCategoryMoxieA4({ wrapByWord: true, randomHide: true });
+  document.getElementById('cateFullCyBtn').onclick = () => exportCategoryMoxieA4({ wrapByWord: true, hideAll: true });
 }
+
+// 设置元素显隐的小工具
+function setDisplay(id, val) { const el = document.getElementById(id); if (el) el.style.display = val; }
 
 // ========== A4 导出公共部分 ==========
 function getExportScopeInfo() {
   const cat = charState.currentCategory, g = charState.currentGrade;
-  const gradeName = GRADES[g] || '';
+  const gradeName = gradeFullName(g) || '';
   const catName = CATEGORY_LABELS[cat] || '知识库';
   const gu = getGradeUnits(g);
   const fuid = charState.filterUnitIndex > 0 ? gu[charState.filterUnitIndex - 1].id : null;
@@ -371,107 +473,54 @@ function getExportScopeInfo() {
   return { cat, g, gradeName, catName, unitName, lessonName };
 }
 
-// 生成 A4 HTML 并打开打印窗口（系统打印 → 另存为 PDF）
-function openA4Print(html, fileBaseName) {
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const w = window.open(url, '_blank');
-  // 兜底：被弹窗拦截时直接下载该 html
-  setTimeout(() => {
-    URL.revokeObjectURL(url);
-    if (!w) {
-      const a = document.createElement('a');
-      a.href = url; a.download = `${fileBaseName}.html`;
-      a.click();
-    }
-  }, 2000);
-  showToast('已生成 A4 导出页，请使用系统打印另存为 PDF');
-}
-
-const A4_DOC_HEAD = (title) => `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<title>${title}</title>
-<style>
-  @page { size: A4; margin: 12mm; }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; color: #2D2D2D; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  body { background: #fff; }
-  .header { text-align: center; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid #FF6B35; }
-  .header h1 { font-size: 20px; letter-spacing: 2px; }
-  .header .meta { font-size: 12px; color: #8E8E93; margin-top: 6px; }
-  .footer { text-align: center; font-size: 11px; color: #8E8E93; margin-top: 14px; }
-  @media print { body { background: #fff; } }
-</style>
-</head>
-<body>`;
-
-const A4_DOC_TAIL = `
-  <script>
-    window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 300); });
-  </script>
-</body>
-</html>`;
-
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
-
-// ========== 导出当前选中内容为 A4 纸 ==========
-function exportCategoryPageA4() {
-  const list = getCategoryPageList();
-  if (!list || list.length === 0) { showToast('当前没有可导出的内容'); return; }
-  const { catName, gradeName, unitName, lessonName } = getExportScopeInfo();
-
-  const cells = list.map(item => {
-    const pinyin = item.pinyin ? `<div class="pinyin">${escapeHtml(item.pinyin)}</div>` : '';
-    const content = item.content ? `<div class="hanzi">${escapeHtml(item.content)}</div>` : '';
-    const ciyu = item.ciyu ? `<div class="ciyu">${escapeHtml(item.ciyu)}${item.ciyupy ? ' <span class="ciyupy">' + escapeHtml(item.ciyupy) + '</span>' : ''}</div>` : '';
-    return `<div class="cell">${pinyin}${content}${ciyu}</div>`;
-  }).join('');
-
-  const html = A4_DOC_HEAD(`${catName}-${gradeName}-${unitName}-${lessonName}`) + `
-  <style>
-    .grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
-    .cell { border: 1px solid #E0E0E0; border-radius: 6px; min-height: 70px; padding: 6px 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; page-break-inside: avoid; break-inside: avoid; background: #fff; }
-    .pinyin { font-size: 10px; color: #142351; margin-bottom: 2px; }
-    .hanzi { font-size: 26px; font-weight: 600; line-height: 1.1; font-family: 'STKaiti', 'KaiTi', '楷体', serif; }
-    .ciyu { font-size: 10px; color: #5B9BD5; margin-top: 3px; font-weight: 500; }
-    .ciyupy { font-style: italic; color: #142351; font-weight: 400; }
-  </style>
-  <div class="header">
-    <h1>${catName} · ${gradeName}</h1>
-    <div class="meta">${unitName} ｜ ${lessonName} ｜ 共 ${list.length} 项</div>
-  </div>
-  <div class="grid">${cells}</div>
-  <div class="footer">小学语文助手 · ${list.length} 项 · 打印为 A4</div>` + A4_DOC_TAIL;
-
-  openA4Print(html, `${catName}-${gradeName}-${unitName}`);
-}
-
-// ========== 汉字默写导出（A4）==========
-// 每一项：上方为词组拼音，下方为田字格；田字格中目标字（汉字 content）格子留空，词组其余字照常显示。
-// ========== 汉字默写导出（下载为本地图片 PNG）==========
-// A4 @ 150dpi：1240×1754。布局：每行 4 个词组，每个字“拼音在上、田字格在下”逐字对齐；
-// 田字格中目标字留空，其余字照常显示。
-function exportCategoryMoxieA4() {
+// ========== 汉字（词语）默写导出 + 汉字导出（下载为本地图片 PNG）==========
+// A4 @ 150dpi：1240×1754。布局：每行 4 个词组，每个字“拼音在上、田字格在下”逐字对齐。
+// 模式（通过 opts 对象决定）：
+//   hideTarget=true  —— 目标字留空，其余字显示 = 汉字默写
+//   hideAll=true     —— 田字格全部留空                = 全写
+//   highlightTarget=true —— 全部显示，目标字标红     = 汉字导出
+//   wrapByWord=true  —— 词语页按词组自动换行（分散对齐，避免多字词挤压）
+//   randomHide=true  —— 词语默写：按字数随机留空（2/3字空1，4字空2），需配合 wrapByWord
+function exportCategoryMoxieA4(opts) {
+  const hideTarget = opts?.hideTarget ?? false;
+  const hideAll = opts?.hideAll ?? false;
+  const highlightTarget = opts?.highlightTarget ?? false; // 仅汉字导出模式生效
+  const wrapByWord = opts?.wrapByWord ?? false;          // 词语页按词组自动换行
+  const randomHide = opts?.randomHide ?? false;          // 词语默写：按字数随机留空
   const list = getCategoryPageList();
   if (!list || list.length === 0) { showToast('当前没有可导出的内容'); return; }
   const { gradeName, unitName, lessonName } = getExportScopeInfo();
 
   const W = 1240, H = 1754;            // A4 @150dpi
   const MARGIN = 70;                    // 页边距
-  const COLS = 4;                       // 每行 4 个词组
+  const COLS = 4;                       // 每行 4 个词组（汉字导出布局）
   const TZG = 78;                       // 田字格边长（px）
-  const GAP_COL = 16;                   // 字与字间距
-  const PY_H = 26;                      // 拼音行高
-  const ITEM_GAP_Y = 34;                // 词组行间距
-  const HAN_FONT = `${TZG - 12}px 'STKaiti','KaiTi','楷体',serif`;
-  const PY_FONT = `20px -apple-system,'PingFang SC','Microsoft YaHei',sans-serif`;
+  const GAP_COL = 12;                   // 字与字间距
+  const GAP_WORD = 28;                  // 词组间距（词语页换行布局）
+  const PY_H = 38;                      // 拼音行高
+  const ITEM_GAP_Y = 36;                // 词组行间距
+  const HAN_FONT = `44px 'STKaiti','KaiTi','楷体',serif`;
+  const PY_FONT = `28px -apple-system,'PingFang SC','Microsoft YaHei',sans-serif`;
   const TITLE_FONT = `bold 34px -apple-system,'PingFang SC','Microsoft YaHei',sans-serif`;
   const META_FONT = `20px -apple-system,'PingFang SC','Microsoft YaHei',sans-serif`;
   const FOOTER_FONT = `18px -apple-system,'PingFang SC','Microsoft YaHei',sans-serif`;
+
+  // 绘制单个字格：拼音 + 田字格 + 字（模式决定留空/标红）
+  function drawCell(c, x, baseY) {
+    ctx.fillStyle = '#142351';
+    ctx.font = PY_FONT;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(c.py || '', x + TZG / 2, baseY + PY_H - 8);
+    drawTianZiGe(ctx, x, baseY + PY_H, TZG);
+    if (!c.blank) {
+      ctx.fillStyle = (highlightTarget && c.isTarget) ? '#EF5350' : '#2D2D2D';
+      ctx.font = HAN_FONT;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(c.ch, x + TZG / 2, baseY + PY_H + TZG / 2 + 2);
+    }
+  }
 
   // 预处理：词组 + 拼音 + 目标字
   const items = list.map(item => {
@@ -481,10 +530,21 @@ function exportCategoryMoxieA4() {
     const chars = [...word];
     const pys = wordPy ? wordPy.split(/\s+/).filter(s => s) : [];
     const perChar = pys.length === chars.length;
+    // 词语默写：随机留空位置集合（2/3字空1个，4字空2个）
+    const blankIdx = new Set();
+    if (randomHide && chars.length > 0) {
+      const n = chars.length >= 4 ? 2 : 1;
+      const pool = chars.map((_, i) => i);
+      for (let k = 0; k < n && pool.length > 0; k++) {
+        const pick = Math.floor(Math.random() * pool.length);
+        blankIdx.add(pool.splice(pick, 1)[0]);
+      }
+    }
     return chars.map((ch, i) => ({
       ch,
       py: perChar ? (pys[i] || '') : '',
-      blank: target.includes(ch)
+      isTarget: target.includes(ch),
+      blank: hideAll || (hideTarget && target.includes(ch)) || blankIdx.has(i)
     }));
   }).filter(a => a.length > 0);
 
@@ -507,67 +567,99 @@ function exportCategoryMoxieA4() {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
   ctx.font = TITLE_FONT;
-  ctx.fillText(`汉字默写 · ${gradeName}`, W / 2, y + 34);
+  // 标题：按「是否词语页布局」+「模式」综合判定
+  let modeName;
+  if (wrapByWord) {
+    modeName = hideAll ? '词语全写' : (randomHide ? '词语默写' : '词语导出');
+  } else {
+    modeName = hideAll ? '汉字全写' : (highlightTarget ? '汉字导出' : '汉字默写');
+  }
+  ctx.fillText(`${modeName} · ${gradeName}`, W / 2, y + 34);
   y += 34 + 12;
   ctx.fillStyle = '#8E8E93';
   ctx.font = META_FONT;
   ctx.fillText(`${unitName} ｜ ${lessonName} ｜ 共 ${list.length} 项`, W / 2, y + 20);
   y += 20 + 30;
 
-  // 内容网格：每行 4 个词组，按列均分宽度
-  const contentW = W - MARGIN * 2;
-  const cellW = contentW / COLS;
-  let rowIdx = 0;
   const itemH = PY_H + TZG + 4;
 
-  items.forEach((cells, i) => {
-    const col = i % COLS;
-    if (col === 0 && i > 0) { rowIdx++; y += itemH + ITEM_GAP_Y; }
-    // 该词组整体在所属列内居左
-    const totalW = cells.length * TZG + (cells.length - 1) * GAP_COL;
-    let x = MARGIN + col * cellW + (cellW - totalW) / 2;
-    const baseY = y;
-    cells.forEach(c => {
-      // 拼音
-      ctx.fillStyle = '#142351';
-      ctx.font = PY_FONT;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'alphabetic';
-      ctx.fillText(c.py || '', x + TZG / 2, baseY + 20);
-      // 田字格边框 + 十字虚线
-      drawTianZiGe(ctx, x, baseY + PY_H, TZG);
-      // 字（目标字留空）
-      if (!c.blank) {
-        ctx.fillStyle = '#2D2D2D';
-        ctx.font = HAN_FONT;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(c.ch, x + TZG / 2, baseY + PY_H + TZG / 2 + 2);
+  if (wrapByWord) {
+    // 词语/成语页：每行基础 4 个词组，词组放不下当前行则整组换行；行内分散对齐
+    const wordW = (cells) => cells.length * TZG + (cells.length - 1) * GAP_COL;
+    const rightEdge = W - MARGIN;
+    const contentW = rightEdge - MARGIN;
+    // 第一阶段：按词组宽度分行（每行最多 4 个，超右边界换行）
+    const rows = [];
+    let cur = [], curW = 0;
+    items.forEach((cells) => {
+      const w = wordW(cells);
+      const addW = w + (cur.length > 0 ? GAP_WORD : 0);
+      if (cur.length > 0 && (curW + addW > contentW + 1 || cur.length >= 4)) {
+        rows.push(cur); cur = []; curW = 0;
       }
-      x += TZG + GAP_COL;
+      cur.push(cells);
+      curW += (cur.length > 1 ? GAP_WORD : 0) + w;
     });
-  });
+    if (cur.length > 0) rows.push(cur);
+    // 第二阶段：每行分散对齐绘制
+    let rowTop = y;
+    rows.forEach((row) => {
+      const totalWordW = row.reduce((s, c) => s + wordW(c), 0);
+      // 词组间距 = (行宽 - 各词组宽度之和) / (词组数 - 1)；单词组时左对齐
+      const gap = row.length > 1 ? (contentW - totalWordW) / (row.length - 1) : 0;
+      const baseY = rowTop;
+      let cx = MARGIN;
+      row.forEach((cells, idx) => {
+        if (idx > 0) cx += gap;          // 词组间距
+        cells.forEach(c => { drawCell(c, cx, baseY); cx += TZG + GAP_COL; });
+      });
+      rowTop += itemH + ITEM_GAP_Y;
+    });
+  } else {
+    // 汉字页：每行 4 个词组，按列均分宽度
+    const contentW = W - MARGIN * 2;
+    const cellW = contentW / COLS;
+    let rowIdx = 0;
+    items.forEach((cells, i) => {
+      const col = i % COLS;
+      if (col === 0 && i > 0) { rowIdx++; y += itemH + ITEM_GAP_Y; }
+      const totalW = cells.length * TZG + (cells.length - 1) * GAP_COL;
+      let x = MARGIN + col * cellW + (cellW - totalW) / 2;
+      const baseY = y;
+      cells.forEach(c => { drawCell(c, x, baseY); x += TZG + GAP_COL; });
+    });
+  }
 
   // 页脚
   ctx.fillStyle = '#8E8E93';
   ctx.font = FOOTER_FONT;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
-  ctx.fillText(`小学语文助手 · 汉字默写 · ${list.length} 项`, W / 2, H - 40);
+  ctx.fillText(`小学语文助手 · ${modeName} · ${list.length} 项`, W / 2, H - 40);
 
-  // 下载为 PNG
-  canvas.toBlob(blob => {
-    if (!blob) { showToast('图片生成失败'); return; }
-    const url = URL.createObjectURL(blob);
+  const dataUrl = canvas.toDataURL('image/png');
+  // 显示大图，提示长按保存到手机相册
+  showImageSaveModal(dataUrl, `${modeName}-${gradeName}-${unitName}.png`);
+}
+
+// 显示「长按图片保存到相册」弹窗：移动端长按 <img> 会触发系统保存菜单
+function showImageSaveModal(dataUrl, fileBaseName) {
+  // 同时尝试触发直接下载（桌面端/部分安卓有效）
+  try {
     const a = document.createElement('a');
-    a.href = url;
-    a.download = `汉字默写-${gradeName}-${unitName}.png`;
+    a.href = dataUrl;
+    a.download = `${fileBaseName}.png`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 1500);
-    showToast('已保存默写图片到本地');
-  }, 'image/png');
+  } catch (e) { }
+
+  const html = `<div class="modal-header"><span class="modal-title">长按图片保存到相册</span><span class="modal-close" onclick="closeModal()">×</span></div>
+    <div style="text-align:center;">
+      <img id="saveImg" src="${dataUrl}" alt="汉字默写" style="width:100%;max-width:420px;border:1px solid var(--color-border);border-radius:10px;user-select:none;-webkit-user-select:none;" />
+      <p style="font-size:13px;color:var(--color-text-secondary);margin-top:12px;line-height:1.6;">长按上方图片，选择「存储图像 / 保存图片」即可存入手机相册。</p>
+    </div>`;
+  showModal(html);
 }
 
 // 绘制单个田字格：实线边框 + 十字虚线
@@ -664,7 +756,7 @@ function openCategoryAddModal() {
 function openCategoryEditModal(item) {
   const cat = charState.currentCategory;
   let ig = charState.currentGrade;
-  for (let i = 0; i < 6; i++) { const arr = getCategoryGradeData(cat, i); if (arr.find(c => c.id === item.id)) { ig = i; break; } }
+  for (let i = 0; i < 12; i++) { const arr = getCategoryGradeData(cat, i); if (arr.find(c => c.id === item.id)) { ig = i; break; } }
   const gu = getGradeUnits(ig); let ui = 0, li = 0, su = null;
   if (item.unitId) { const idx = gu.findIndex(u => String(u.id) === String(item.unitId)); if (idx > -1) { ui = idx + 1; su = gu[idx]; } }
   if (item.lessonId && su) { const idx = (su.lessons || []).findIndex(l => String(l.id) === String(item.lessonId)); if (idx > -1) li = idx + 1; }
@@ -704,7 +796,7 @@ function openCategoryManageModal() {
   let mt = 'unit';
   function getHtml() {
     let list = mt === 'unit' ? getGradeUnits(charState.currentGrade) : getGradeUnits(charState.currentGrade).flatMap(u => (u.lessons || []).map(l => ({ ...l, _unitName: u.name })));
-    return `<div class="modal-header"><span class="modal-title">${GRADES[charState.currentGrade]} - 管理</span><span class="modal-close" onclick="closeModal()">×</span></div>
+    return `<div class="modal-header"><span class="modal-title">${gradeFullName(charState.currentGrade)} - 管理</span><span class="modal-close" onclick="closeModal()">×</span></div>
       <div class="manage-tabs"><div class="manage-tab ${mt === 'unit' ? 'active' : ''}" data-tab="unit">单元</div><div class="manage-tab ${mt === 'lesson' ? 'active' : ''}" data-tab="lesson">课文</div></div>
       <div class="manage-list">${list.length === 0 ? `<div style="text-align:center;padding:30px 0;color:#999;font-size:13px;">暂无${mt === 'unit' ? '单元' : '课文'}</div>` : list.map(item => `<div class="manage-item"><div class="manage-item-info"><span class="manage-item-id">${item.id}</span><span class="manage-item-name">${item.name}${item._unitName ? ' (' + item._unitName + ')' : ''}</span></div><span class="manage-item-delete" data-id="${item.id}" data-type="${item.type || (mt === 'unit' ? 'unit' : 'lesson')}">删除</span></div>`).join('')}</div>
       <div class="clear-cate-btn" id="clearCateBtn">清空所有分类数据</div>`;
@@ -712,7 +804,7 @@ function openCategoryManageModal() {
   function bindManage() {
     document.querySelectorAll('.manage-tab').forEach(t => { t.onclick = () => { mt = t.dataset.tab; showModal(getHtml()); bindManage(); }; });
     document.querySelectorAll('.manage-item-delete').forEach(d => { d.onclick = () => { const id = d.dataset.id, type = d.dataset.type; confirmDialog('确认删除', '确定删除吗？关联的内容不会被删除。', () => { const key = gradeKey(charState.currentGrade); if (type === 'unit') { const idx = (appState.cateData[key] || []).findIndex(u => String(u.id) === String(id)); if (idx > -1) appState.cateData[key].splice(idx, 1); } else { for (const u of (appState.cateData[key] || [])) { const idx = (u.lessons || []).findIndex(l => String(l.id) === String(id)); if (idx > -1) { u.lessons.splice(idx, 1); break; } } } saveCateData(); showModal(getHtml()); bindManage(); }); }; });
-    document.getElementById('clearCateBtn').onclick = () => { confirmDialog('确认清空', '将清空所有单元和课文分类数据。确定清空吗？', () => { appState.cateData = { grade1: [], grade2: [], grade3: [], grade4: [], grade5: [], grade6: [] }; saveCateData(); showModal(getHtml()); bindManage(); showToast('已清空'); }); };
+    document.getElementById('clearCateBtn').onclick = () => { confirmDialog('确认清空', '将清空所有单元和课文分类数据。确定清空吗？', () => { appState.cateData = emptyCateData12(); saveCateData(); showModal(getHtml()); bindManage(); showToast('已清空'); }); };
   }
   showModal(getHtml()); bindManage();
 }
@@ -764,10 +856,10 @@ function refreshDictationSelect() {
       refreshDictationSelect();
     }
   }; });
-  // 年级 tab
-  const gtEl = document.getElementById('dictGradeTabs');
-  gtEl.innerHTML = GRADES.map((g, i) => `<div class="grade-tab ${dictationState.currentGrade === i ? 'active' : ''}" data-grade="${i}"><span class="grade-tab-text">${g}</span></div>`).join('');
-  gtEl.querySelectorAll('.grade-tab').forEach(t => { t.onclick = () => { dictationState.currentGrade = parseInt(t.dataset.grade); dictationState.filterUnitIndex = 0; dictationState.filterLessonIndex = 0; refreshDictationSelect(); }; });
+  // 年级 + 学期 tab
+  renderGradeAndSemester('dictGradeTabs', 'dictSemesterBar', dictationState.currentGrade, (newG) => {
+    dictationState.currentGrade = newG; dictationState.filterUnitIndex = 0; dictationState.filterLessonIndex = 0; refreshDictationSelect();
+  });
   const gu = getGradeUnits(dictationState.currentGrade);
   const fuid = dictationState.filterUnitIndex > 0 ? gu[dictationState.filterUnitIndex - 1].id : null;
   const gl = fuid === null ? gu.flatMap(u => u.lessons || []) : (gu.find(u => String(u.id) === String(fuid)) || { lessons: [] }).lessons || [];
@@ -849,7 +941,7 @@ async function runDictationLoop() {
     }
     incrementTimes(char);
     const unit = findUnitName(char.unitId), lesson = findLessonName(char.lessonId);
-    dictationState.dictationRecords.push({ id: char.id, pg: 1, yes: 0, hz: char.content || '', cy: char.ciyu || '', cyp: char.ciyupy || '', py: char.pinyin || '', nj: GRADES[dictationState.currentGrade] || '', dy: unit || '', kw: lesson || '' });
+    dictationState.dictationRecords.push({ id: char.id, pg: 1, yes: 0, hz: char.content || '', cy: char.ciyu || '', cyp: char.ciyupy || '', py: char.pinyin || '', nj: gradeFullName(dictationState.currentGrade) || '', dy: unit || '', kw: lesson || '' });
     if (dictationState.currentIndex < dictationState.dictationList.length - 1) await delay(2000);
     dictationState.currentIndex++; dictationState.currentGroup = 0; updateDictRunning();
   }
@@ -862,9 +954,14 @@ async function runDictationLoop() {
   }
 }
 
-function findUnitName(id) { if (!id) return ''; for (let i = 1; i <= 6; i++) { const u = (appState.cateData['grade' + i] || []).find(u => String(u.id) === String(id)); if (u) return u.name; } return ''; }
-function findLessonName(id) { if (!id) return ''; for (let i = 1; i <= 6; i++) { for (const u of (appState.cateData['grade' + i] || [])) { const l = (u.lessons || []).find(l => String(l.id) === String(id)); if (l) return l.name; } } return ''; }
-function incrementTimes(char) { const list = getCategoryGradeData(dictationState.currentCategory, dictationState.currentGrade); if (!Array.isArray(list)) return; const item = list.find(c => c.id === char.id); if (item) { item.times = (item.times || 0) + 1; saveCategoryGradeData(dictationState.currentCategory, dictationState.currentGrade); } }
+function findUnitName(id) { if (!id) return ''; for (const k of CATE_KEYS_12) { const u = (appState.cateData[k] || []).find(u => String(u.id) === String(id)); if (u) return u.name; } return ''; }
+function findLessonName(id) { if (!id) return ''; for (const k of CATE_KEYS_12) { for (const u of (appState.cateData[k] || [])) { const l = (u.lessons || []).find(l => String(l.id) === String(id)); if (l) return l.name; } } return ''; }
+function incrementTimes(char) {
+  // 听写次数写入用户统计层（个人空间），不再污染共享内容数据
+  const cat = dictationState.currentCategory, g = dictationState.currentGrade;
+  const cur = getStat(cat, g, char.id);
+  updateStat(cat, g, char.id, { times: (cur.times || 0) + 1 });
+}
 async function syncDictationRecords() {
   if (dictationState.dictationRecords.length === 0) return;
   const c = getSyncConfig();
@@ -902,9 +999,30 @@ function initMine() {
     const cfg = getSyncConfig(); if (!isSyncConfigured(cfg)) { showToast('请先配置令牌和仓库地址'); return; }
     showLoading('推送中...');
     try {
-      for (const cat of CATEGORIES) { for (let i = 0; i < 6; i++) { const data = localStorage.getItem(storageKey(cat.value, i)) || '[]'; await pushCategoryToGitee(data, cfg, cat.value, i); } }
+      for (const cat of CATEGORIES) {
+        for (let i = 0; i < 12; i++) {
+          const data = localStorage.getItem(storageKey(cat.value, i)) || '[]'; await pushCategoryToGitee(data, cfg, cat.value, i);
+          // 同时推送用户统计层到个人空间
+          const stats = localStorage.getItem(statsStorageKey(cat.value, i)) || '{}'; await pushStatsToGitee(stats, cfg, cat.value, i);
+        }
+      }
       hideLoading(); updateSyncTime(); refreshMine(); showToast('推送成功');
     } catch (e) { hideLoading(); showToast(e.message || '推送失败'); }
+  };
+  document.getElementById('initDataBtn').onclick = async () => {
+    const cfg = getSyncConfig(); if (!isSyncConfigured(cfg)) { showToast('请先配置令牌和仓库地址'); return; }
+    confirmDialog('初始化数据文件', '扫描并创建缺失的数据文件（已有文件不动）。确定执行吗？', async () => {
+      showLoading('初始化中...');
+      try {
+        const result = await initAllDataFiles(cfg, (done, total, name) => {
+          document.getElementById('loadingText').textContent = `初始化中... ${done}/${total} ${name}`;
+        });
+        hideLoading();
+        showToast(`完成：新建 ${result.created} 个，跳过 ${result.skipped} 个，失败 ${result.failed} 个`);
+      } catch (e) {
+        hideLoading(); showToast('初始化失败：' + (e.message || ''));
+      }
+    });
   };
   document.getElementById('pullBtn').onclick = async () => {
     const cfg = getSyncConfig(); if (!isSyncConfigured(cfg)) { showToast('请先配置令牌和仓库地址'); return; }
@@ -913,15 +1031,23 @@ function initMine() {
       // 拉取单元课文树
       try { const cj = await pullCateFromGitee(cfg); const rc = JSON.parse(cj); if (rc && Object.keys(rc).length > 0) { appState.cateData = normalizeCateData(rc); localStorage.setItem(CATE_STORAGE_KEY, JSON.stringify(appState.cateData)); } } catch (e) { }
       appState.cateLoaded = true;
-      // 拉取全部分类 × 年级内容
+      // 拉取全部分类 × 年级内容 + 用户统计层
       for (const cat of CATEGORIES) {
-        for (let i = 0; i < 6; i++) {
+        for (let i = 0; i < 12; i++) {
           const rj = await pullCategoryFromGitee(cfg, cat.value, i);
           const rd = JSON.parse(rj);
           localStorage.setItem(storageKey(cat.value, i), rj);
           setCategoryGradeData(cat.value, i, rd);
+          // 拉取用户统计层（个人空间）
+          try {
+            const sj = await pullStatsFromGitee(cfg, cat.value, i);
+            const sd = JSON.parse(sj || '{}');
+            setStatsMap(cat.value, i, (sd && typeof sd === 'object') ? sd : {});
+            localStorage.setItem(statsStorageKey(cat.value, i), JSON.stringify(getStatsMap(cat.value, i)));
+          } catch (e) { }
         }
         appState.categoryLoaded[cat.value] = true;
+        appState.statsLoaded[cat.value] = true;
       }
       hideLoading(); updateSyncTime(); refreshMine(); showToast('拉取成功');
     } catch (e) { hideLoading(); showToast(e.message || '拉取失败'); }
@@ -955,7 +1081,7 @@ async function loadDateList() {
   if (!isSyncConfigured(config)) { container.innerHTML = '<div class="empty-tip"><span class="empty-text">请先配置同步</span></div>'; return; }
   try {
     const fn = '' + historyState.currentYear + String(historyState.currentMonth).padStart(2, '0');
-    const files = await listHanziDataFolder(config, getSpacePrefix() + '/count_hanzi/' + fn);
+    const files = await listHanziDataFolder(config, getUserDataPrefix() + '/count_hanzi/' + fn);
     historyState.dateList = files.map(name => { const d = name.replace('.json', '').slice(-2); const m = name.replace('.json', '').slice(4, 6); return { fileName: name, label: m + '月' + d + '日' }; }).reverse();
     if (historyState.dateList.length === 0) { container.innerHTML = '<div class="empty-tip"><span class="empty-text">暂无听写记录</span></div>'; return; }
     container.innerHTML = historyState.dateList.map(item => '<div class="date-item ' + (historyState.selectedDate === item.fileName ? 'active' : '') + '" data-file="' + item.fileName + '"><span class="date-item-text">' + item.label + '</span></div>').join('');
@@ -971,7 +1097,7 @@ async function selectDate(fileName) {
   const config = getSyncConfig(); if (!isSyncConfigured(config)) return;
   try {
     const fn = '' + historyState.currentYear + String(historyState.currentMonth).padStart(2, '0');
-    const result = await pullHanziRecordsFromGitee(config, getSpacePrefix() + '/count_hanzi/' + fn + '/' + fileName);
+    const result = await pullHanziRecordsFromGitee(config, getUserDataPrefix() + '/count_hanzi/' + fn + '/' + fileName);
     historyState.selectedFileSha = result.sha || '';
     historyState.charList = (result.records || []).map(r => ({ ...r, yes: typeof r.yes === 'number' ? r.yes : 0 }));
     renderHistoryChars();
@@ -1007,7 +1133,7 @@ async function historyMarkYes(idx, value) {
   }
   const fn = '' + historyState.currentYear + String(historyState.currentMonth).padStart(2, '0'); const config = getSyncConfig();
   if (!isSyncConfigured(config)) return;
-  try { const result = await pullHanziRecordsFromGitee(config, getSpacePrefix() + '/count_hanzi/' + fn + '/' + historyState.selectedDate); historyState.selectedFileSha = result.sha || ''; historyState.charList = (result.records || []).map(r => ({ ...r, yes: typeof r.yes === 'number' ? r.yes : 0 })); renderHistoryChars(); } catch (e) { }
+  try { const result = await pullHanziRecordsFromGitee(config, getUserDataPrefix() + '/count_hanzi/' + fn + '/' + historyState.selectedDate); historyState.selectedFileSha = result.sha || ''; historyState.charList = (result.records || []).map(r => ({ ...r, yes: typeof r.yes === 'number' ? r.yes : 0 })); renderHistoryChars(); } catch (e) { }
 }
 
 async function saveHistoryCountData() {
@@ -1018,17 +1144,18 @@ async function saveHistoryCountData() {
 }
 
 function updateYesInCharList(charId, oldYes, newYes) {
+  // 批改对错只写入用户统计层（个人空间），不再污染共享内容数据
   const idStr = String(charId);
   outer: for (const cat of CATEGORIES) {
-    for (let i = 0; i < 6; i++) {
-      let list = []; try { const d = localStorage.getItem(storageKey(cat.value, i)); if (d) list = JSON.parse(d); } catch (e) { continue; }
-      if (!Array.isArray(list)) continue; const idx = list.findIndex(c => String(c.id) === idStr);
-      if (idx > -1) {
-        if (oldYes === 1) list[idx].yes = (list[idx].yes || 0) - 1; else if (oldYes === 2) list[idx].wrong = (list[idx].wrong || 0) - 1;
-        if (newYes === 1) list[idx].yes = (list[idx].yes || 0) + 1; else if (newYes === 2) list[idx].wrong = (list[idx].wrong || 0) + 1;
-        localStorage.setItem(storageKey(cat.value, i), JSON.stringify(list));
-        setCategoryGradeData(cat.value, i, list);
-        const config = getSyncConfig(); if (isSyncConfigured(config)) pushCategoryToGitee(JSON.stringify(list), config, cat.value, i).catch(() => { });
+    for (let i = 0; i < 12; i++) {
+      const list = getCategoryGradeData(cat.value, i);
+      if (!Array.isArray(list)) continue;
+      if (list.find(c => String(c.id) === idStr)) {
+        const cur = getStat(cat.value, i, idStr);
+        let yes = cur.yes || 0, wrong = cur.wrong || 0;
+        if (oldYes === 1) yes--; else if (oldYes === 2) wrong--;
+        if (newYes === 1) yes++; else if (newYes === 2) wrong++;
+        updateStat(cat.value, i, idStr, { yes, wrong });
         break outer;
       }
     }
@@ -1192,17 +1319,9 @@ function navigateToUnitManage() {
 function renderUnitManage() {
   const g = umState.currentGrade;
 
-  // 年级 tab
-  const tabsEl = document.getElementById('umGradeTabs');
-  tabsEl.innerHTML = GRADES.map((gd, i) =>
-    `<div class="grade-tab ${g === i ? 'active' : ''}" data-grade="${i}"><span class="grade-tab-text">${gd}</span></div>`
-  ).join('');
-  tabsEl.querySelectorAll('.grade-tab').forEach(t => {
-    t.onclick = () => {
-      umState.currentGrade = parseInt(t.dataset.grade);
-      umState.filterUnitIndex = 0;
-      renderUnitManage();
-    };
+  // 年级 + 学期 tab
+  renderGradeAndSemester('umGradeTabs', 'umSemesterBar', g, (newG) => {
+    umState.currentGrade = newG; umState.filterUnitIndex = 0; renderUnitManage();
   });
 
   const units = getGradeUnits(g);
@@ -1501,12 +1620,16 @@ async function doSyncBaseData(user) {
     showToast('同步配置缺失');
     return;
   }
-  showLoading('正在同步基础数据...');
+  showLoading('正在加载基础数据...');
   try {
-    const count = await syncBaseDataToUserSpace(config, user.filder);
+    // 基础内容统一从 dictation/ 读取共享库，不再复制到用户空间；
+    // 用户个人听写记录(count_hanzi)、错词本(count_error)按需写入用户空间。
+    // 这里拉取单元课文树 + 全部分类内容到本地缓存，完成首次加载。
+    await loadCateFromGiteeOnly();
+    for (const cat of CATEGORIES) { await loadCategoryData(cat.value); }
     await markUserSynced(user);
     hideLoading();
-    showToast(`同步完成，共复制 ${count || 0} 个文件`);
+    showToast('基础数据加载完成');
     // 重置加载标志：同步后数据已变，后续进听写页/切分类时按需重新拉取最新数据
     appState.cateLoaded = false;
     appState.categoryLoaded = {};

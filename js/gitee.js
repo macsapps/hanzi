@@ -10,13 +10,22 @@ function setActiveSpace(space) { _activeSpace = space; }
 function getActiveSpace() { return _activeSpace; }
 function getSpacePrefix() { return _activeSpace || 'dictation'; }
 
-// 内容数据按分类分文件夹、按年级分文件：{space}/{category}/{grade+1}.json
+// 基础内容数据路径：统一走 dictation/（共享只读，不走用户空间）
+function getContentPrefix() { return 'dictation'; }
+// 用户业务数据路径：走用户个人空间
+function getUserDataPrefix() { return _activeSpace || 'dictation'; }
+
+// 内容数据按分类分文件夹、按年级分文件：{category}/{grade+1}.json
+// 偶数索引＝上册（gradeN_0.json），奇数索引＝下册（gradeN.json）
 function getCategoryGradePath(category, gradeIndex) {
-  return `${getSpacePrefix()}/${category}/${Number(gradeIndex) + 1}.json`;
+  const n = Number(gradeIndex);
+  const base = Math.floor(n / 2) + 1;
+  const suffix = n % 2 === 0 ? '_0' : '';
+  return `${getContentPrefix()}/${category}/${base}${suffix}.json`;
 }
 
 function getCatePath() {
-  return `${getSpacePrefix()}/cate.json`;
+  return `${getContentPrefix()}/cate.json`;
 }
 
 function getSyncConfig() {
@@ -196,7 +205,9 @@ async function _writeFileToGitee(url, dataJson, config, commitMessage) {
 
 async function pushCategoryToGitee(dataJson, config, category, gradeIndex) {
   const url = buildCategoryContentUrl(config, category, gradeIndex);
-  await pushFileToGitee(url, dataJson, config, `同步${category}/${gradeIndex + 1}数据`);
+  const n = Number(gradeIndex);
+  const label = n % 2 === 0 ? `${Math.floor(n/2)+1}上` : `${Math.floor(n/2)+1}下`;
+  await pushFileToGitee(url, dataJson, config, `同步${category}/${label}数据`);
 }
 
 async function pullCategoryFromGitee(config, category, gradeIndex) {
@@ -229,8 +240,44 @@ async function pullCateFromGitee(config) {
   if (resp.ok && data && data.content) {
     return decodeBase64(data.content);
   } else {
-    // 文件不存在时返回默认空分类结构
-    return '{"grade1":[],"grade2":[],"grade3":[],"grade4":[],"grade5":[],"grade6":[]}';
+    // 文件不存在时返回默认空分类结构（12 个年级，含上下册）
+    return '{"grade1_0":[],"grade1":[],"grade2_0":[],"grade2":[],"grade3_0":[],"grade3":[],"grade4_0":[],"grade4":[],"grade5_0":[],"grade5":[],"grade6_0":[],"grade6":[]}';
+  }
+}
+
+// ========== 用户统计层 stats（个人空间，与共享内容解耦） ==========
+// 路径：{space}/stats/{category}_{gradeLabel}.json，内容：{ "字id": {times,yes,wrong} }
+function getStatsPath(category, gradeIndex) {
+  const n = Number(gradeIndex);
+  const base = Math.floor(n / 2) + 1;
+  const suffix = n % 2 === 0 ? '_0' : '';
+  return `${getUserDataPrefix()}/stats/${category}_${base}${suffix}.json`;
+}
+function buildStatsUrl(config, category, gradeIndex) {
+  const parsed = parseRepo(config.repo);
+  if (!parsed) return null;
+  return `${GITEE_API_BASE}/repos/${parsed.owner}/${parsed.repo}/contents/${encodeFilePath(getStatsPath(category, gradeIndex))}`;
+}
+// 写入用户统计（文件不存在自动创建，存在则更新）
+async function pushStatsToGitee(dataJson, config, category, gradeIndex) {
+  const url = buildStatsUrl(config, category, gradeIndex);
+  const n = Number(gradeIndex);
+  const label = n % 2 === 0 ? `${Math.floor(n/2)+1}上` : `${Math.floor(n/2)+1}下`;
+  await pushFileToGitee(url, dataJson, config, `同步统计 ${category}/${label}`);
+}
+// 拉取用户统计，文件不存在返回 '{}'
+async function pullStatsFromGitee(config, category, gradeIndex) {
+  if (!isSyncConfigured(config)) throw new Error('请先配置 Gitee 令牌和仓库地址');
+  const url = buildStatsUrl(config, category, gradeIndex);
+  if (!url) throw new Error('仓库地址格式错误');
+  const resp = await fetch(`${url}?access_token=${config.token.trim()}&ref=${config.branch || DEFAULT_BRANCH}`);
+  const data = await resp.json();
+  if (resp.ok && data && data.content) {
+    return decodeBase64(data.content);
+  } else if (resp.status === 401) {
+    throw new Error('令牌无效或已过期(401)');
+  } else {
+    return '{}';
   }
 }
 
@@ -657,74 +704,49 @@ async function pullErrorDataFromGitee(config, monthFileName) {
   }
 }
 
-// ===== 通用文件 URL 构建（用于同步等场景） =====
-function buildFileUrl(config, filePath) {
-  const parsed = parseRepo(config.repo);
-  if (!parsed) return null;
-  return `${GITEE_API_BASE}/repos/${parsed.owner}/${parsed.repo}/contents/${encodeFilePath(filePath)}`;
-}
+// ========== 初始化数据文件：已有的不动，缺失的创建空文件 ==========
+const EMPTY_CATE_JSON = '{"grade1_0":[],"grade1":[],"grade2_0":[],"grade2":[],"grade3_0":[],"grade3":[],"grade4_0":[],"grade4":[],"grade5_0":[],"grade5":[],"grade6_0":[],"grade6":[]}';
 
-// 递归列出某个目录下的所有文件（含子目录）
-async function listAllFilesRecursive(config, dirPath) {
-  const parsed = parseRepo(config.repo);
-  if (!parsed) return [];
-  const url = `${GITEE_API_BASE}/repos/${parsed.owner}/${parsed.repo}/contents/${encodeFilePath(dirPath)}`;
-  let resp;
-  try {
-    resp = await fetch(`${url}?access_token=${config.token.trim()}&ref=${config.branch || DEFAULT_BRANCH}`);
-  } catch (e) {
-    return [];
-  }
-  const data = await resp.json();
-  if (!resp.ok || !Array.isArray(data)) return [];
-
-  const results = [];
-  for (const item of data) {
-    if (item.type === 'file') {
-      results.push(`${dirPath}/${item.name}`);
-    } else if (item.type === 'dir') {
-      const subFiles = await listAllFilesRecursive(config, `${dirPath}/${item.name}`);
-      results.push(...subFiles);
-    }
-  }
-  return results;
-}
-
-// ===== 同步基础数据到用户空间 =====
-// 将 dictation/ 目录下的所有文件复制到用户的个人空间
-async function syncBaseDataToUserSpace(config, space) {
+// 初始化所有内容数据文件（5 分类 × 12 年级）+ cate.json：文件已存在则跳过，不存在则创建
+// onProgress(已处理数, 总数, 当前文件名) 可选进度回调；返回 {created, skipped, failed}
+async function initAllDataFiles(config, onProgress) {
   if (!isSyncConfigured(config)) throw new Error('请先配置 Gitee 令牌和仓库地址');
-  if (!space) throw new Error('缺少用户空间标识');
+  const check = await checkRepoAccess(config);
+  if (!check.ok) throw new Error(check.error);
 
-  const branch = config.branch || DEFAULT_BRANCH;
-  const token = config.token.trim();
-
-  // 读取 dictation/ 下所有文件
-  const files = await listAllFilesRecursive(config, 'dictation');
-  if (files.length === 0) return;
-
-  let copied = 0;
-  for (const srcPath of files) {
-    // 读取源文件内容
-    const srcUrl = buildFileUrl(config, srcPath);
-    if (!srcUrl) continue;
-    let resp;
-    try {
-      resp = await fetch(`${srcUrl}?access_token=${token}&ref=${branch}`);
-    } catch (e) {
-      continue;
+  const CATEGORIES = ['hanzi', 'ciyu', 'chengyu', 'gushi', 'jilei'];
+  const tasks = [];
+  // 60 个内容文件
+  for (const cat of CATEGORIES) {
+    for (let i = 0; i < 12; i++) {
+      tasks.push({ type: 'content', cat, gradeIndex: i, url: buildCategoryContentUrl(config, cat, i), name: `${cat}/${gradeFileLabel(i)}` });
     }
-    const data = await resp.json();
-    if (!resp.ok || !data || !data.content) continue;
-
-    // 写入到用户空间（保持相对路径）
-    const relPath = srcPath.startsWith('dictation/') ? srcPath.slice('dictation/'.length) : srcPath;
-    const destPath = `${space}/${relPath}`;
-    const destUrl = buildFileUrl(config, destPath);
-    if (!destUrl) continue;
-
-    await _writeFileToGitee(destUrl, decodeBase64(data.content), config, `同步基础数据 ${relPath}`);
-    copied++;
   }
-  return copied;
+  // cate.json
+  tasks.push({ type: 'cate', url: buildCateUrl(config), name: 'cate.json' });
+
+  const total = tasks.length;
+  let created = 0, skipped = 0, failed = 0;
+  for (let idx = 0; idx < total; idx++) {
+    const t = tasks[idx];
+    if (onProgress) onProgress(idx + 1, total, t.name);
+    try {
+      const { sha } = await getFileShaByUrl(t.url, config);
+      if (sha) { skipped++; continue; }            // 文件已存在 → 不动
+      // 不存在 → 创建空文件
+      const emptyJson = t.type === 'cate' ? EMPTY_CATE_JSON : '[]';
+      await _writeFileToGitee(t.url, emptyJson, config, `初始化空文件 ${t.name}`);
+      created++;
+    } catch (e) {
+      failed++;
+    }
+  }
+  return { created, skipped, failed, total };
+}
+
+// 年级索引 → 文件名标签（如 1_0 → "1_0"，1 → "1"）
+function gradeFileLabel(gradeIndex) {
+  const n = Number(gradeIndex);
+  const base = Math.floor(n / 2) + 1;
+  return n % 2 === 0 ? `${base}_0` : `${base}`;
 }
