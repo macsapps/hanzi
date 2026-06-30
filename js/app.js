@@ -974,7 +974,8 @@ let dictationState = {
   phase: 'select', dictationMode: 'lesson', currentCategory: 'hanzi', currentGrade: 0,
   filterUnitIndex: 0, filterLessonIndex: 0,
   dictationList: [], currentIndex: 0, currentGroup: 0,
-  abortFlag: false, isPaused: false, _delayTimer: null, dictationRecords: []
+  abortFlag: false, isPaused: false, _delayTimer: null, dictationRecords: [],
+  groupDelay: 5000   // 一组（一个字词）朗读完后，等待多久再朗读下一组（毫秒）
 };
 
 function showDictPhase(phase) {
@@ -1062,7 +1063,36 @@ async function startDictation() {
   const list = getDictationSelectedList();
   if (list.length === 0) { showToast('没有可选的字词'); return; }
   dictationState.dictationList = [...list]; dictationState.currentIndex = 0; dictationState.currentGroup = 0;
-  dictationState.abortFlag = false; dictationState.isPaused = false; dictationState.dictationRecords = []; dictationState.phase = 'dictating';
+  dictationState.abortFlag = false; dictationState.isPaused = false; dictationState.dictationRecords = [];
+
+  // 弹窗选择组间延迟时间
+  const delayMs = await new Promise(resolve => {
+    const options = [
+      { label: '3 秒', ms: 3000 },
+      { label: '5 秒', ms: 5000 },
+      { label: '8 秒', ms: 8000 },
+      { label: '10 秒', ms: 10000 },
+    ];
+    const optionBtns = options.map((o, i) =>
+      `<button class="delay-option-btn" data-idx="${i}" style="flex:1;min-width:60px;">${o.label}</button>`
+    ).join('');
+    showModal(`<div class="modal-header"><span class="modal-title">选择组间延迟时间</span><span class="modal-close" onclick="closeModal()">×</span></div>
+      <p style="font-size:14px;color:var(--color-text-secondary);margin-bottom:16px;text-align:center;">每组字词朗读完后，等待多久才开始下一组？</p>
+      <div style="display:flex;gap:10px;justify-content:center;">${optionBtns}</div>`);
+    // 绑定按钮事件
+    setTimeout(() => {
+      document.querySelectorAll('.delay-option-btn').forEach(btn => {
+        btn.onclick = () => {
+          const idx = parseInt(btn.dataset.idx);
+          closeModal();
+          resolve(options[idx].ms);
+        };
+      });
+    }, 0);
+  });
+
+  dictationState.groupDelay = delayMs;
+  dictationState.phase = 'dictating';
   showDictPhase('running'); updateDictRunning(); await runDictationLoop();
 }
 
@@ -1102,7 +1132,7 @@ async function runDictationLoop() {
     incrementTimes(char);
     const unit = findUnitName(char.unitId), lesson = findLessonName(char.lessonId);
     dictationState.dictationRecords.push({ id: char.id, pg: 1, yes: 0, hz: char.content || '', cy: char.ciyu || '', cyp: char.ciyupy || '', py: char.pinyin || '', nj: gradeFullName(dictationState.currentGrade) || '', dy: unit || '', kw: lesson || '' });
-    if (dictationState.currentIndex < dictationState.dictationList.length - 1) await delay(2000);
+    if (dictationState.currentIndex < dictationState.dictationList.length - 1) await delay(dictationState.groupDelay);
     dictationState.currentIndex++; dictationState.currentGroup = 0; updateDictRunning();
   }
   if (!dictationState.abortFlag) {
