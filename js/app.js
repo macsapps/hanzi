@@ -187,7 +187,8 @@ async function autoSyncCategoryToGitee(cat, g) {
 }
 async function autoSyncCateToGitee() {
   const c = getSyncConfig(); if (!isSyncConfigured(c)) return;
-  try { await pushCateToGitee(JSON.stringify(appState.cateData), c); updateSyncTime(); } catch (e) { }
+  try { await pushCateToGitee(JSON.stringify(appState.cateData), c); updateSyncTime(); }
+  catch (e) { console.error('同步 cate.json 到 Gitee 失败:', e.message || e); }
 }
 function updateSyncTime() {
   const n = new Date(), p = m => String(m).padStart(2, '0');
@@ -373,6 +374,7 @@ function refreshCategoryPage() {
   const cyVisible = (cat !== 'hanzi') ? '' : 'none';
   setDisplay('cateMoxieHanziBtn', hanziVisible);
   setDisplay('cateFullHanziBtn', hanziVisible);
+  setDisplay('cateZhuyinBtn', hanziVisible);
   setDisplay('cateMoxieCyBtn', cyVisible);
   setDisplay('cateFullCyBtn', cyVisible);
   // 年级 + 学期 tab
@@ -446,9 +448,10 @@ function initCategoryPage() {
   document.getElementById('cateExportBtn').onclick = () => exportCategoryMoxieA4(
     charState.currentCategory === 'hanzi' ? { highlightTarget: true } : { wrapByWord: true }
   );
-  // 汉字类：汉字默写（目标字留空）/ 汉字全写（全空）
+  // 汉字类：汉字默写（目标字留空）/ 汉字全写（全空）/ 汉字注音（全显示，拼音四线三格）
   document.getElementById('cateMoxieHanziBtn').onclick = () => exportCategoryMoxieA4({ hideTarget: true });
   document.getElementById('cateFullHanziBtn').onclick = () => exportCategoryMoxieA4({ hideAll: true });
+  document.getElementById('cateZhuyinBtn').onclick = () => exportCategoryMoxieA4({ pinyinGrid: true });
   // 词语类：词语默写（随机留空）/ 词语全写（全空，分散对齐）
   document.getElementById('cateMoxieCyBtn').onclick = () => exportCategoryMoxieA4({ wrapByWord: true, randomHide: true });
   document.getElementById('cateFullCyBtn').onclick = () => exportCategoryMoxieA4({ wrapByWord: true, hideAll: true });
@@ -487,6 +490,7 @@ function exportCategoryMoxieA4(opts) {
   const highlightTarget = opts?.highlightTarget ?? false; // 仅汉字导出模式生效
   const wrapByWord = opts?.wrapByWord ?? false;          // 词语页按词组自动换行
   const randomHide = opts?.randomHide ?? false;          // 词语默写：按字数随机留空
+  const pinyinGrid = opts?.pinyinGrid ?? false;          // 汉字注音：拼音用四线三格、汉字全显示
   const list = getCategoryPageList();
   if (!list || list.length === 0) { showToast('当前没有可导出的内容'); return; }
   const { gradeName, unitName, lessonName } = getExportScopeInfo();
@@ -505,6 +509,8 @@ function exportCategoryMoxieA4(opts) {
   const META_FONT = `20px -apple-system,'PingFang SC','Microsoft YaHei',sans-serif`;
   const FOOTER_FONT = `18px -apple-system,'PingFang SC','Microsoft YaHei',sans-serif`;
 
+  let ctx;   // 当前页 canvas 上下文（drawCell/drawZhuyinCell 闭包引用，每页重新赋值）
+
   // 绘制单个字格：拼音 + 田字格 + 字（模式决定留空/标红）
   function drawCell(c, x, baseY) {
     ctx.fillStyle = '#142351';
@@ -520,6 +526,43 @@ function exportCategoryMoxieA4(opts) {
       ctx.textBaseline = 'middle';
       ctx.fillText(c.ch, x + TZG / 2, baseY + PY_H + TZG / 2 + 2);
     }
+  }
+
+  // 汉字注音专用：拼音写在四线三格里 + 田字格 + 字（字全部显示）
+  const ZH_TOTAL_H = 56;   // 四线格总高度（line1 到 line4）
+  const ZH_TOP = 8;        // 顶部留白，之后画 line1
+  function drawZhuyinCell(c, x, baseY) {
+    const gridW = TZG;
+    const l1 = baseY + ZH_TOP;                       // 顶线
+    const l2 = baseY + ZH_TOP + 18;                  // 中线（虚线）
+    const l3 = baseY + ZH_TOP + 35;                  // 基线（拼音文字落在此线）
+    const l4 = baseY + ZH_TOP + ZH_TOTAL_H;          // 底线
+    // 四条线
+    ctx.save();
+    ctx.strokeStyle = '#999';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(x, l1); ctx.lineTo(x + gridW, l1); ctx.stroke();
+    ctx.strokeStyle = '#ccc';
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(x, l2); ctx.lineTo(x + gridW, l2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = '#999';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(x, l3); ctx.lineTo(x + gridW, l3); ctx.stroke();
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, l4); ctx.lineTo(x + gridW, l4); ctx.stroke();
+    ctx.restore();
+    // 拼音不显示，只保留空的四线三格线条
+    // 田字格（在四线格下方）
+    const tzgY = baseY + ZH_TOTAL_H + ZH_TOP;
+    drawTianZiGe(ctx, x, tzgY, TZG);
+    // 字（全部显示）
+    ctx.fillStyle = '#2D2D2D';
+    ctx.font = HAN_FONT;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(c.ch, x + TZG / 2, tzgY + TZG / 2 + 2);
   }
 
   // 预处理：词组 + 拼音 + 目标字
@@ -550,116 +593,201 @@ function exportCategoryMoxieA4(opts) {
 
   if (items.length === 0) { showToast('当前没有可导出的内容'); return; }
 
-  const canvas = document.createElement('canvas');
-  canvas.width = W; canvas.height = H;
-  const ctx = canvas.getContext('2d');
+  // 汉字注音模式：四线三格更高，需更大行高；并切换绘制函数
+  const drawFn = pinyinGrid ? drawZhuyinCell : drawCell;
+  const itemH = pinyinGrid ? (ZH_TOTAL_H + ZH_TOP * 2 + TZG + 4) : (PY_H + TZG + 4);
 
-  // 白底
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, W, H);
+  // ========== 分页计算 ==========
+  // 页眉高度（标题 + 副标题 + 间距）
+  const HEADER_H = 24 + 34 + 12 + 20 + 30; // 从 y=MARGIN 开始：橙线+24、标题+34+12、副标题+20+30
+  const FOOTER_H = 40;                     // 页脚距离底部
+  const CONTENT_TOP = MARGIN + HEADER_H;   // 内容起始 y
+  const CONTENT_BOTTOM = H - FOOTER_H;     // 内容结束 y（不能超出页脚）
+  const MAX_Y = CONTENT_BOTTOM - itemH;    // 最后一行的最大起始 y
 
-  // 页眉
-  let y = MARGIN;
-  ctx.fillStyle = '#FF6B35';
-  ctx.fillRect(MARGIN, y, W - MARGIN * 2, 3);
-  y += 24;
-  ctx.fillStyle = '#2D2D2D';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'alphabetic';
-  ctx.font = TITLE_FONT;
-  // 标题：按「是否词语页布局」+「模式」综合判定
-  let modeName;
-  if (wrapByWord) {
-    modeName = hideAll ? '词语全写' : (randomHide ? '词语默写' : '词语导出');
-  } else {
-    modeName = hideAll ? '汉字全写' : (highlightTarget ? '汉字导出' : '汉字默写');
-  }
-  ctx.fillText(`${modeName} · ${gradeName}`, W / 2, y + 34);
-  y += 34 + 12;
-  ctx.fillStyle = '#8E8E93';
-  ctx.font = META_FONT;
-  ctx.fillText(`${unitName} ｜ ${lessonName} ｜ 共 ${list.length} 项`, W / 2, y + 20);
-  y += 20 + 30;
-
-  const itemH = PY_H + TZG + 4;
+  // 生成所有行（两种布局都统一为「行」数组）
+  const allRows = [];
 
   if (wrapByWord) {
-    // 词语/成语页：每行基础 4 个词组，词组放不下当前行则整组换行；行内分散对齐
     const wordW = (cells) => cells.length * TZG + (cells.length - 1) * GAP_COL;
     const rightEdge = W - MARGIN;
     const contentW = rightEdge - MARGIN;
-    // 第一阶段：按词组宽度分行（每行最多 4 个，超右边界换行）
-    const rows = [];
     let cur = [], curW = 0;
     items.forEach((cells) => {
       const w = wordW(cells);
       const addW = w + (cur.length > 0 ? GAP_WORD : 0);
       if (cur.length > 0 && (curW + addW > contentW + 1 || cur.length >= 4)) {
-        rows.push(cur); cur = []; curW = 0;
+        allRows.push({ type: 'wrap', cells: cur });
+        cur = []; curW = 0;
       }
       cur.push(cells);
       curW += (cur.length > 1 ? GAP_WORD : 0) + w;
     });
-    if (cur.length > 0) rows.push(cur);
-    // 第二阶段：每行分散对齐绘制
-    let rowTop = y;
-    rows.forEach((row) => {
-      const totalWordW = row.reduce((s, c) => s + wordW(c), 0);
-      // 词组间距 = (行宽 - 各词组宽度之和) / (词组数 - 1)；单词组时左对齐
-      const gap = row.length > 1 ? (contentW - totalWordW) / (row.length - 1) : 0;
-      const baseY = rowTop;
-      let cx = MARGIN;
-      row.forEach((cells, idx) => {
-        if (idx > 0) cx += gap;          // 词组间距
-        cells.forEach(c => { drawCell(c, cx, baseY); cx += TZG + GAP_COL; });
-      });
-      rowTop += itemH + ITEM_GAP_Y;
-    });
+    if (cur.length > 0) allRows.push({ type: 'wrap', cells: cur });
   } else {
-    // 汉字页：每行 4 个词组，按列均分宽度
     const contentW = W - MARGIN * 2;
     const cellW = contentW / COLS;
-    let rowIdx = 0;
+    // 将 items 按固定列数打包为行
+    let cur = [], curCells = [];
     items.forEach((cells, i) => {
-      const col = i % COLS;
-      if (col === 0 && i > 0) { rowIdx++; y += itemH + ITEM_GAP_Y; }
-      const totalW = cells.length * TZG + (cells.length - 1) * GAP_COL;
-      let x = MARGIN + col * cellW + (cellW - totalW) / 2;
-      const baseY = y;
-      cells.forEach(c => { drawCell(c, x, baseY); x += TZG + GAP_COL; });
+      cur.push({ cells, col: i % COLS });
+      curCells.push(cells);
+      if (cur.length === COLS || i === items.length - 1) {
+        allRows.push({ type: 'grid', entries: cur, cellsArr: curCells });
+        cur = []; curCells = [];
+      }
     });
   }
 
-  // 页脚
-  ctx.fillStyle = '#8E8E93';
-  ctx.font = FOOTER_FONT;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'alphabetic';
-  ctx.fillText(`小学语文助手 · ${modeName} · ${list.length} 项`, W / 2, H - 40);
+  // 将行分配到各页（逐页累计高度）
+  // 每页从 CONTENT_TOP 开始，首行无前置 gap，后续行需 ITEM_GAP_Y + itemH
+  const pages = [];            // pages[i] = { rows: [...], top: CONTENT_TOP }
+  let curPageRows = [];
+  let curPageUsed = 0;         // 当前页已占用高度（从 CONTENT_TOP 起）
 
-  const dataUrl = canvas.toDataURL('image/png');
-  // 显示大图，提示长按保存到手机相册
-  showImageSaveModal(dataUrl, `${modeName}-${gradeName}-${unitName}.png`);
+  for (const row of allRows) {
+    // 该行需要的高度：首行仅 itemH，非首行 itemH + ITEM_GAP_Y
+    const rowNeed = (curPageRows.length === 0 ? 0 : ITEM_GAP_Y) + itemH;
+    // 若加入此行后底部超出内容区，且当前页已有内容，则封存当前页、开新页
+    if (curPageRows.length > 0 && curPageUsed + rowNeed > MAX_Y - CONTENT_TOP) {
+      pages.push({ rows: curPageRows, top: CONTENT_TOP });
+      curPageRows = [];
+      curPageUsed = 0;
+    }
+    curPageRows.push(row);
+    curPageUsed += rowNeed;
+  }
+  if (curPageRows.length > 0) {
+    pages.push({ rows: curPageRows, top: CONTENT_TOP });
+  }
+
+  // 逐页生成 canvas dataUrls
+  const dataUrls = [];
+  const totalPages = pages.length;
+  // 统一确定模式名称（循环内外均需引用）
+  let modeName;
+  if (wrapByWord) {
+    modeName = hideAll ? '词语全写' : (randomHide ? '词语默写' : '词语导出');
+  } else {
+    modeName = hideAll ? '汉字全写' : (pinyinGrid ? '汉字注音' : (highlightTarget ? '汉字导出' : '汉字默写'));
+  }
+
+  for (let pi = 0; pi < totalPages; pi++) {
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    ctx = canvas.getContext('2d');
+
+    // 白底
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, W, H);
+
+    // 页眉
+    let y = MARGIN;
+    ctx.fillStyle = '#FF6B35';
+    ctx.fillRect(MARGIN, y, W - MARGIN * 2, 3);
+    y += 24;
+    ctx.fillStyle = '#2D2D2D';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.font = TITLE_FONT;
+    // 标题
+    ctx.fillText(`${modeName} · ${gradeName}`, W / 2, y + 34);
+    y += 34 + 12;
+    ctx.fillStyle = '#8E8E93';
+    ctx.font = META_FONT;
+    ctx.fillText(`${unitName} ｜ ${lessonName} ｜ 共 ${list.length} 项`, W / 2, y + 20);
+    y += 20 + 30;
+
+    // 绘制当前页的行
+    const page = pages[pi];
+    let rowTop = page.top;
+
+    for (const row of page.rows) {
+      if (row.type === 'wrap') {
+        const cellsArr = row.cells;
+        const wordW = (cells) => cells.length * TZG + (cells.length - 1) * GAP_COL;
+        const contentW = (W - MARGIN * 2);
+        const totalWordW = cellsArr.reduce((s, c) => s + wordW(c), 0);
+        const gap = cellsArr.length > 1 ? (contentW - totalWordW) / (cellsArr.length - 1) : 0;
+        const baseY = rowTop;
+        let cx = MARGIN;
+        cellsArr.forEach((cells, idx) => {
+          if (idx > 0) cx += gap;
+          cells.forEach(c => { drawFn(c, cx, baseY); cx += TZG + GAP_COL; });
+        });
+        rowTop += itemH + ITEM_GAP_Y;
+      } else {
+        // type: 'grid' — 汉字固定列布局
+        const entries = row.entries;
+        const contentW = W - MARGIN * 2;
+        const cellW = contentW / COLS;
+        const baseY = rowTop;
+        entries.forEach(({ cells, col }) => {
+          const totalW = cells.length * TZG + (cells.length - 1) * GAP_COL;
+          let x = MARGIN + col * cellW + (cellW - totalW) / 2;
+          cells.forEach(c => { drawFn(c, x, baseY); x += TZG + GAP_COL; });
+        });
+        rowTop += itemH + ITEM_GAP_Y;
+      }
+    }
+
+    // 页脚（含页码）
+    ctx.fillStyle = '#8E8E93';
+    ctx.font = FOOTER_FONT;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(`小学语文助手 · ${modeName} · 第 ${pi + 1} / ${totalPages} 页`, W / 2, H - 40);
+
+    dataUrls.push(canvas.toDataURL('image/png'));
+  }
+
+  // 显示图片弹窗（多页）
+  showPagedImageModal(dataUrls, `${modeName}-${gradeName}-${unitName}`);
 }
 
-// 显示「长按图片保存到相册」弹窗：移动端长按 <img> 会触发系统保存菜单
-function showImageSaveModal(dataUrl, fileBaseName) {
-  // 同时尝试触发直接下载（桌面端/部分安卓有效）
-  try {
-    const a = document.createElement('a');
-    a.href = dataUrl;
-    a.download = `${fileBaseName}.png`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  } catch (e) { }
+// 显示多页图片弹窗：支持翻页切换、页码指示、下载当前页
+function showPagedImageModal(dataUrls, fileBaseName) {
+  const total = dataUrls.length;
+  let currentIdx = 0;
+  const escapedName = fileBaseName.replace(/'/g, "\\'");
 
-  const html = `<div class="modal-header"><span class="modal-title">长按图片保存到相册</span><span class="modal-close" onclick="closeModal()">×</span></div>
-    <div style="text-align:center;">
-      <img id="saveImg" src="${dataUrl}" alt="汉字默写" style="width:100%;max-width:420px;border:1px solid var(--color-border);border-radius:10px;user-select:none;-webkit-user-select:none;" />
-      <p style="font-size:13px;color:var(--color-text-secondary);margin-top:12px;line-height:1.6;">长按上方图片，选择「存储图像 / 保存图片」即可存入手机相册。</p>
-    </div>`;
-  showModal(html);
+  function renderPage(idx) {
+    const html = `<div class="modal-header">
+        <span class="modal-title">长按图片保存到相册</span>
+        <span class="modal-download-btn" onclick="downloadPagedImage('${escapedName}', ${idx})">⬇ 下载</span>
+        <span class="modal-close" onclick="closeModal()">×</span>
+      </div>
+      <div style="text-align:center;">
+        <img id="saveImg" src="${dataUrls[idx]}" alt="汉字默写" style="width:100%;max-width:420px;border:1px solid var(--color-border);border-radius:10px;user-select:none;-webkit-user-select:none;" />
+        <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-top:10px;">
+          ${idx > 0 ? '<span class="page-nav-btn" onclick="window._pageGoto(' + (idx - 1) + ')">‹ 上一页</span>' : '<span class="page-nav-btn page-nav-disabled">‹ 上一页</span>'}
+          <span class="page-indicator">第 ${idx + 1} / ${total} 页</span>
+          ${idx < total - 1 ? '<span class="page-nav-btn" onclick="window._pageGoto(' + (idx + 1) + ')">下一页 ›</span>' : '<span class="page-nav-btn page-nav-disabled">下一页 ›</span>'}
+        </div>
+        <p style="font-size:13px;color:var(--color-text-secondary);margin-top:10px;line-height:1.6;">长按上方图片，选择「存储图像 / 保存图片」即可存入手机相册。</p>
+      </div>`;
+    showModal(html);
+  }
+
+  window._pageGoto = function(idx) {
+    currentIdx = idx;
+    renderPage(idx);
+  };
+
+  renderPage(0);
+}
+
+// 下载多页弹窗中当前页图片（点击「下载」按钮触发）
+function downloadPagedImage(fileBaseName, pageIdx) {
+  const img = document.getElementById('saveImg');
+  if (!img) return;
+  const a = document.createElement('a');
+  a.href = img.src;
+  a.download = `${fileBaseName}-${pageIdx + 1}.png`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  showToast('图片已下载');
 }
 
 // 绘制单个田字格：实线边框 + 十字虚线
@@ -686,17 +814,35 @@ function openCategoryAddModal() {
   let form = { gradeIndex: charState.currentGrade, unitIndex: 0, lessonIndex: 0, content: '' };
   const ph = { hanzi: '如：诗｜shī（诗人）shī rén，碧｜bì（碧绿）bì lǜ', ciyu: '如：高兴｜gāo xìng，快乐｜kuài lè', chengyu: '如：春暖花开｜chūn nuǎn huā kāi', gushi: '如：静夜思｜jìng yè sī', jilei: '如：一年之计在于春｜yī nián zhī jì zài yú chūn' };
   function getHtml() {
-    const units = getGradeUnits(form.gradeIndex);
-    const lessons = form.unitIndex > 0 ? ((units[form.unitIndex - 1] || { lessons: [] }).lessons || []) : [];
+    const gi = form.gradeIndex;
+    const hasGrade = gi !== null && gi !== '';
+    const gradeIdx = hasGrade ? Math.floor(Number(gi) / 2) : -1;
+    const semIdx = hasGrade ? (Number(gi) % 2) : 0;
+    const units = hasGrade ? getGradeUnits(gi) : [];
+    const lessons = (hasGrade && form.unitIndex > 0) ? ((units[form.unitIndex - 1] || { lessons: [] }).lessons || []) : [];
     return `<div class="modal-header"><span class="modal-title">添加${CATEGORY_LABELS[cat]}</span><span class="modal-close" onclick="closeModal()">×</span></div>
-      <div class="form-group"><label class="form-label">年级</label><select class="form-select" id="addGrade"><option value="">请选择年级</option>${GRADES.map((g, i) => `<option value="${i}" ${form.gradeIndex === i ? 'selected' : ''}>${g}</option>`).join('')}</select></div>
+      <div class="form-group"><label class="form-label">年级</label><select class="form-select" id="addGrade"><option value="">请选择年级</option>${GRADES.map((g, i) => `<option value="${i}" ${gradeIdx === i ? 'selected' : ''}>${g}</option>`).join('')}</select></div>
+      <div class="form-group"><label class="form-label">学期</label><select class="form-select" id="addSemester">${SEMESTERS.map((s, i) => `<option value="${i}" ${semIdx === i ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
       <div class="form-group"><label class="form-label">单元</label><div class="form-row"><select class="form-select" id="addUnit"><option value="0">选择单元</option>${units.map((u, i) => `<option value="${i + 1}" ${form.unitIndex === i + 1 ? 'selected' : ''}>${u.name}</option>`).join('')}</select><div class="form-row-btn" id="addUnitBtn">+</div></div></div>
       <div class="form-group"><label class="form-label">课文</label><div class="form-row"><select class="form-select" id="addLesson"><option value="0">选择课文</option>${lessons.map((l, i) => `<option value="${i + 1}" ${form.lessonIndex === i + 1 ? 'selected' : ''}>${l.name}</option>`).join('')}</select><div class="form-row-btn" id="addLessonBtn">+</div></div></div>
       <div class="form-group"><label class="form-label">内容</label><textarea class="form-textarea" id="addContent" placeholder="${ph[cat] || '请输入内容'}">${form.content}</textarea></div>
       <button class="btn btn-primary btn-block" id="addSubmitBtn">添加</button>`;
   }
   function bindForm() {
-    document.getElementById('addGrade').onchange = (e) => { form.gradeIndex = e.target.value === '' ? null : parseInt(e.target.value); form.unitIndex = 0; form.lessonIndex = 0; showModal(getHtml()); bindForm(); };
+    // 年级+学期组合成 0-11 内部索引：grade*2 + semester（0=上册，1=下册）
+    const recomputeGrade = () => {
+      const gv = document.getElementById('addGrade').value;
+      if (gv === '') { form.gradeIndex = null; form.semester = 0; }
+      else {
+        const sv = parseInt(document.getElementById('addSemester').value) || 0;
+        form.gradeIndex = parseInt(gv) * 2 + sv;
+        form.semester = sv;
+      }
+      form.unitIndex = 0; form.lessonIndex = 0;
+      showModal(getHtml()); bindForm();
+    };
+    document.getElementById('addGrade').onchange = recomputeGrade;
+    document.getElementById('addSemester').onchange = recomputeGrade;
     document.getElementById('addUnit').onchange = (e) => { form.unitIndex = parseInt(e.target.value); form.lessonIndex = 0; showModal(getHtml()); bindForm(); };
     document.getElementById('addLesson').onchange = (e) => { form.lessonIndex = parseInt(e.target.value); };
     document.getElementById('addContent').oninput = (e) => { form.content = e.target.value; };
@@ -762,10 +908,15 @@ function openCategoryEditModal(item) {
   if (item.lessonId && su) { const idx = (su.lessons || []).findIndex(l => String(l.id) === String(item.lessonId)); if (idx > -1) li = idx + 1; }
   let ef = { id: item.id, originalGrade: ig, gradeIndex: ig, unitIndex: ui, lessonIndex: li, content: item.content || '', ciyu: item.ciyu || '', ciyupy: item.ciyupy || '' };
   function getHtml() {
-    const units = ef.gradeIndex !== null ? getGradeUnits(ef.gradeIndex) : [];
-    const lessons = (ef.gradeIndex !== null && ef.unitIndex > 0) ? ((units[ef.unitIndex - 1] || { lessons: [] }).lessons || []) : [];
+    const gi = ef.gradeIndex;
+    const hasGrade = gi !== null && gi !== '';
+    const gradeIdx = hasGrade ? Math.floor(Number(gi) / 2) : 0;
+    const semIdx = hasGrade ? (Number(gi) % 2) : 0;
+    const units = hasGrade ? getGradeUnits(gi) : [];
+    const lessons = (hasGrade && ef.unitIndex > 0) ? ((units[ef.unitIndex - 1] || { lessons: [] }).lessons || []) : [];
     return `<div class="modal-header"><span class="modal-title">修改${CATEGORY_LABELS[cat]}</span><span class="modal-close" onclick="closeModal()">×</span></div>
-      <div class="form-group"><label class="form-label">年级</label><select class="form-select" id="editGrade">${GRADES.map((g, i) => `<option value="${i}" ${ef.gradeIndex === i ? 'selected' : ''}>${g}</option>`).join('')}</select></div>
+      <div class="form-group"><label class="form-label">年级</label><select class="form-select" id="editGrade">${GRADES.map((g, i) => `<option value="${i}" ${gradeIdx === i ? 'selected' : ''}>${g}</option>`).join('')}</select></div>
+      <div class="form-group"><label class="form-label">学期</label><select class="form-select" id="editSemester">${SEMESTERS.map((s, i) => `<option value="${i}" ${semIdx === i ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
       <div class="form-group"><label class="form-label">单元</label><select class="form-select" id="editUnit"><option value="0">选择单元</option>${units.map((u, i) => `<option value="${i + 1}" ${ef.unitIndex === i + 1 ? 'selected' : ''}>${u.name}</option>`).join('')}</select></div>
       <div class="form-group"><label class="form-label">课文</label><select class="form-select" id="editLesson"><option value="0">选择课文</option>${lessons.map((l, i) => `<option value="${i + 1}" ${ef.lessonIndex === i + 1 ? 'selected' : ''}>${l.name}</option>`).join('')}</select></div>
       <div class="form-group"><label class="form-label">内容</label><input class="form-input" id="editContent" value="${ef.content}" placeholder="请输入内容" /></div>
@@ -774,7 +925,16 @@ function openCategoryEditModal(item) {
       <button class="btn btn-primary btn-block" id="editSaveBtn">保存</button>`;
   }
   function bindEdit() {
-    document.getElementById('editGrade').onchange = (e) => { ef.gradeIndex = parseInt(e.target.value); ef.unitIndex = 0; ef.lessonIndex = 0; showModal(getHtml()); bindEdit(); };
+    // 年级+学期组合成 0-11 内部索引
+    const recomputeGrade = () => {
+      const gv = parseInt(document.getElementById('editGrade').value);
+      const sv = parseInt(document.getElementById('editSemester').value) || 0;
+      ef.gradeIndex = gv * 2 + sv;
+      ef.unitIndex = 0; ef.lessonIndex = 0;
+      showModal(getHtml()); bindEdit();
+    };
+    document.getElementById('editGrade').onchange = recomputeGrade;
+    document.getElementById('editSemester').onchange = recomputeGrade;
     document.getElementById('editUnit').onchange = (e) => { ef.unitIndex = parseInt(e.target.value); ef.lessonIndex = 0; showModal(getHtml()); bindEdit(); };
     document.getElementById('editLesson').onchange = (e) => { ef.lessonIndex = parseInt(e.target.value); };
     document.getElementById('editSaveBtn').onclick = () => {
@@ -999,6 +1159,9 @@ function initMine() {
     const cfg = getSyncConfig(); if (!isSyncConfigured(cfg)) { showToast('请先配置令牌和仓库地址'); return; }
     showLoading('推送中...');
     try {
+      // 推送单元课文树 cate.json
+      await pushCateToGitee(JSON.stringify(appState.cateData), cfg);
+      // 推送分类内容数据 + 用户统计
       for (const cat of CATEGORIES) {
         for (let i = 0; i < 12; i++) {
           const data = localStorage.getItem(storageKey(cat.value, i)) || '[]'; await pushCategoryToGitee(data, cfg, cat.value, i);

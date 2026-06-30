@@ -620,53 +620,30 @@ async function pushErrorRecord(config, errorItem) {
   const filePath = `${getSpacePrefix()}/count_error/${fileName}`;
   const url = getErrorDataUrl(config, filePath);
   if (!url) return;
-  const branch = config.branch || DEFAULT_BRANCH;
-  const token = config.token.trim();
 
-  // 拉取已有数据（用于去重和获取sha）
+  // 拉取已有数据（用于去重）
   let existing = [];
-  let sha = '';
   try {
-    const resp = await fetch(`${url}?access_token=${token}&ref=${branch}`);
+    const resp = await fetch(`${url}?access_token=${config.token.trim()}&ref=${config.branch || DEFAULT_BRANCH}`);
     const data = await resp.json();
     if (resp.ok && data && data.content) {
       const parsed = JSON.parse(decodeBase64(data.content));
       existing = Array.isArray(parsed) ? parsed : [];
-      sha = data.sha || '';
     }
   } catch (e) {}
 
-  // 去重检查
+  // 去重检查：同一字已存在则不重复记录
   if (existing.some(r => String(r.id) === String(errorItem.id) && r.hz === errorItem.hz)) return;
 
   existing.push(errorItem);
-  const base64Content = encodeBase64(JSON.stringify(existing, null, 2));
   const commitMsg = `记录错误汉字 ${errorItem.hz}`;
 
-  // 先用 POST 创建
-  const createResp = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ access_token: token, content: base64Content, branch, message: commitMsg })
-  });
-  if (createResp.ok) return;
-
-  // POST 失败（文件已存在），重新获取 sha
-  if (!sha) {
-    try {
-      const resp2 = await fetch(`${url}?access_token=${token}&ref=${branch}`);
-      const d2 = await resp2.json();
-      if (resp2.ok && d2 && d2.sha) sha = d2.sha;
-    } catch (e) {}
+  // 复用 _writeFileToGitee 完成创建/更新
+  try {
+    await _writeFileToGitee(url, JSON.stringify(existing, null, 2), config, commitMsg);
+  } catch (e) {
+    console.error('记录错误汉字失败:', e.message || e);
   }
-  if (!sha) return;
-
-  // PUT 更新
-  await fetch(url, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ access_token: token, content: base64Content, sha, branch, message: commitMsg })
-  });
 }
 
 async function listErrorDirs(config) {

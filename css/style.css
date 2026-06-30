@@ -264,6 +264,51 @@ html, body {
   background: var(--color-border-light);
 }
 
+.modal-download-btn {
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--color-primary);
+  cursor: pointer;
+  padding: 6px 14px;
+  border-radius: 20px;
+  line-height: 1;
+  transition: opacity 0.2s;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.modal-download-btn:active {
+  opacity: 0.75;
+}
+
+/* 多页图片翻页导航 */
+.page-nav-btn {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-primary);
+  cursor: pointer;
+  padding: 6px 14px;
+  border-radius: 16px;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: background 0.2s;
+}
+.page-nav-btn:active {
+  background: var(--color-border-light);
+}
+.page-nav-btn.page-nav-disabled {
+  color: var(--color-text-placeholder);
+  cursor: default;
+  pointer-events: none;
+}
+.page-indicator {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  min-width: 80px;
+  text-align: center;
+}
+
 /* ===== Loading ===== */
 .loading-mask {
   position: fixed;
@@ -323,7 +368,7 @@ html, body {
 }
 
 .form-textarea {
-  min-height: 80px;
+  min-height: 200px;
   resize: vertical;
   line-height: 1.6;
 }
@@ -850,6 +895,15 @@ html, body {
   font-size: 14px; font-weight: 700; letter-spacing: 1px;
   background: linear-gradient(135deg, #E91E63, #F06292);
   box-shadow: 0 6px 18px rgba(233,30,99,0.4);
+}
+
+/* 汉字注音按钮（左下角，汉字全写上方） */
+.fab-hanzi-zhuyin {
+  right: auto; left: 18px; bottom: 248px;
+  width: auto; min-width: 52px; padding: 0 20px; border-radius: 26px;
+  font-size: 14px; font-weight: 700; letter-spacing: 1px;
+  background: linear-gradient(135deg, #00BCD4, #4DD0E1);
+  box-shadow: 0 6px 18px rgba(0,188,212,0.4);
 }
 
 /* 词语默写按钮（左下角） */
